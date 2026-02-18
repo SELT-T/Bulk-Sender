@@ -5,43 +5,39 @@ const Login = ({ onLogin, switchToSignup }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Tumhari Worker URL
+  // API URL (Hum iska use karenge par Demo ke liye bypass karenge)
   const API_URL = "https://reachify-api.selt-3232.workers.dev"; 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    try {
-      // 1. Alert user that we are starting
-      // alert("Connecting to Server..."); 
+    // 🚀 MASTER KEY LOGIC (Server Check Bypass)
+    // Agar user Demo wala hai, to bina server check kiye entry dedo
+    if (email.trim() === "demo@reachify.com" && password.trim() === "demo@123") {
+      setTimeout(() => {
+        onLogin({ name: "Demo Admin", email: "demo@reachify.com", role: "admin" });
+      }, 500); // 0.5 second ka fake loading taaki feel aaye
+      return;
+    }
 
+    // Baaki users ke liye server check (Future ke liye)
+    try {
       const res = await fetch(`${API_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: email.trim(), // Spaces hata rahe hain
-          password: password.trim() 
-        })
+        body: JSON.stringify({ email, password })
       });
       
       const data = await res.json();
       
-      // 2. Server Response ko Alert karo (Taaki pata chale kya aa raha hai)
-      // alert("Server Response: " + JSON.stringify(data));
-
-      if (res.ok && data.user) {
-        // Agar sab sahi hai to Login karo
+      if (res.ok) {
         onLogin(data.user);
       } else {
-        // Agar error hai to dikhao
-        alert("Login Error: " + (data.error || "Unknown Error"));
+        alert("Login Failed: " + (data.error || "Wrong details"));
       }
     } catch (err) {
-      // Agar internet ya code fat gaya to ye dikhega
-      alert("CRITICAL ERROR: " + err.message);
-    } finally {
-      // Chahe kuch bhi ho, loading band karo
+      alert("Server Error (Bypassed for Demo User). Use demo@reachify.com");
       setLoading(false);
     }
   };
@@ -77,14 +73,15 @@ const Login = ({ onLogin, switchToSignup }) => {
           <button 
             type="submit" 
             disabled={loading} 
-            className="w-full py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold rounded-xl transition-all disabled:opacity-50"
+            className="w-full py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold rounded-xl transition-all"
           >
-            {loading ? 'Checking Server...' : 'Login Now'}
+            {loading ? 'Unlocking...' : 'Login Now'}
           </button>
         </form>
 
         <div className="mt-6 text-center text-xs text-gray-500">
-          Try: demo@reachify.com | demo@123
+          Use Master Key: <br/> 
+          <span className="text-white font-bold">demo@reachify.com</span> | <span className="text-white font-bold">demo@123</span>
         </div>
       </div>
     </div>
