@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 
-// Pages Import
+// Pages
 import Dashboard from './pages/Dashboard';
 import BulkSender from './pages/BulkSender';
 import AITools from './pages/AITools';
@@ -14,28 +14,22 @@ import Profile from './pages/Profile';
 import Signup from './pages/Signup';
 
 function App() {
-  // User State (Yahan data store hoga)
   const [user, setUser] = useState(null);
   const [activePage, setActivePage] = useState('dashboard');
-  const [authMode, setAuthMode] = useState('login'); // login or signup
+  const [authMode, setAuthMode] = useState('login');
 
-  // Agar user login nahi hai, to Login Screen dikhao
+  // Master Key Login Bypass included
   if (!user) {
-    if (authMode === 'signup') {
-      return <Signup switchToLogin={() => setAuthMode('login')} />;
-    }
-    return (
-      <Login 
-        onLogin={(userData) => {
-          console.log("User Logged In:", userData); // Debugging
-          setUser(userData); // Yahan user set hote hi Dashboard khulna chahiye
-        }} 
-        switchToSignup={() => setAuthMode('signup')} 
-      />
-    );
+    if (authMode === 'signup') return <Signup switchToLogin={() => setAuthMode('login')} />;
+    return <Login onLogin={setUser} switchToSignup={() => setAuthMode('signup')} />;
   }
 
-  // Agar user hai, to Pages dikhao
+  // Logout Function
+  const handleLogout = () => {
+    setUser(null);
+    setAuthMode('login');
+  };
+
   const renderPage = () => {
     switch (activePage) {
       case 'dashboard': return <Dashboard setActivePage={setActivePage} />;
@@ -44,7 +38,7 @@ function App() {
       case 'ai-tools': return <AITools />;
       case 'social': return <SocialConnect />;
       case 'settings': return <Settings />;
-      case 'profile': return <Profile user={user} onLogout={() => setUser(null)} />;
+      case 'profile': return <Profile user={user} onLogout={handleLogout} />;
       default: return <Dashboard setActivePage={setActivePage} />;
     }
   };
@@ -53,7 +47,12 @@ function App() {
     <div className="flex h-screen overflow-hidden bg-[#0f172a]">
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        <Topbar user={user} onProfileClick={() => setActivePage('profile')} />
+        {/* Topbar ko ab hum power de rahe hain page badalne ki aur logout ki */}
+        <Topbar 
+          user={user} 
+          setActivePage={setActivePage} 
+          onLogout={handleLogout} 
+        />
         <main className="flex-1 overflow-y-auto p-6 transition-all duration-300">
           {renderPage()}
         </main>
