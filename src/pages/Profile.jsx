@@ -8,7 +8,7 @@ const Profile = ({ user, onLogout }) => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     // Yahan Backend URL dalna hoga (Step 4 mein set karenge)
-    const API_URL = "https://reachify-api.SELT-T.workers.dev"; // Example URL, replace later
+    const API_URL = "https://reachify-api.selt-3232.workers.dev"; // Example URL, replace later
     
     try {
       await fetch(`${API_URL}/update-profile`, {
