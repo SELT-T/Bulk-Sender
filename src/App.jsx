@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 
@@ -14,21 +14,36 @@ import Profile from './pages/Profile';
 import Signup from './pages/Signup';
 
 function App() {
-  const [user, setUser] = useState(null);
+  // ✅ 1. YADDASHT FIX: Shuruat mein hi check karo ki purana user saved hai kya?
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('reachify_user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
+
   const [activePage, setActivePage] = useState('dashboard');
   const [authMode, setAuthMode] = useState('login');
 
-  // Master Key Login Bypass included
-  if (!user) {
-    if (authMode === 'signup') return <Signup switchToLogin={() => setAuthMode('login')} />;
-    return <Login onLogin={setUser} switchToSignup={() => setAuthMode('signup')} />;
-  }
+  // ✅ 2. Jab bhi User login/logout ho, use Memory (LocalStorage) mein save karo
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('reachify_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('reachify_user');
+    }
+  }, [user]);
 
   // Logout Function
   const handleLogout = () => {
     setUser(null);
     setAuthMode('login');
+    // localStorage useEffect se apne aap clear ho jayega
   };
+
+  // Agar user login nahi hai, to Login Screen dikhao
+  if (!user) {
+    if (authMode === 'signup') return <Signup switchToLogin={() => setAuthMode('login')} />;
+    return <Login onLogin={setUser} switchToSignup={() => setAuthMode('signup')} />;
+  }
 
   const renderPage = () => {
     switch (activePage) {
@@ -47,7 +62,6 @@ function App() {
     <div className="flex h-screen overflow-hidden bg-[#0f172a]">
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* Topbar ko ab hum power de rahe hain page badalne ki aur logout ki */}
         <Topbar 
           user={user} 
           setActivePage={setActivePage} 
