@@ -3,39 +3,47 @@ import React, { useState } from 'react';
 const Login = ({ onLogin, switchToSignup }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // ✅ Maine tumhari Sahi URL yahan daal di hai
+  // Tumhari Worker URL
   const API_URL = "https://reachify-api.selt-3232.workers.dev"; 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
-      console.log("Connecting to:", `${API_URL}/login`); // Debugging ke liye
-      
+      // 1. Alert user that we are starting
+      // alert("Connecting to Server..."); 
+
       const res = await fetch(`${API_URL}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ 
+          email: email.trim(), // Spaces hata rahe hain
+          password: password.trim() 
+        })
       });
       
       const data = await res.json();
       
-      if (res.ok) {
-        onLogin(data.user); // Login Success!
+      // 2. Server Response ko Alert karo (Taaki pata chale kya aa raha hai)
+      // alert("Server Response: " + JSON.stringify(data));
+
+      if (res.ok && data.user) {
+        // Agar sab sahi hai to Login karo
+        onLogin(data.user);
       } else {
-        setError(data.error || "Login Failed");
+        // Agar error hai to dikhao
+        alert("Login Error: " + (data.error || "Unknown Error"));
       }
     } catch (err) {
-      console.error("Login Error:", err);
-      // Ab ye asli error dikhayega
-      setError(`Connection Error: ${err.message}. Backend check karo.`);
+      // Agar internet ya code fat gaya to ye dikhega
+      alert("CRITICAL ERROR: " + err.message);
+    } finally {
+      // Chahe kuch bhi ho, loading band karo
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -44,39 +52,39 @@ const Login = ({ onLogin, switchToSignup }) => {
         <h1 className="text-3xl font-bold text-white text-center mb-2">Reachify Pro</h1>
         <p className="text-gray-400 text-center text-sm mb-6">Login to continue</p>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 text-red-200 rounded-lg text-sm text-center">
-            {error}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="space-y-6">
-          <input 
-            type="email" 
-            className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 text-white focus:border-fuchsia-500 outline-none" 
-            placeholder="Email" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-          />
-          <input 
-            type="password" 
-            className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 text-white focus:border-fuchsia-500 outline-none" 
-            placeholder="Password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-          />
+          <div>
+            <label className="text-gray-400 text-xs ml-1">Email</label>
+            <input 
+              type="email" 
+              className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 text-white focus:border-fuchsia-500 outline-none" 
+              placeholder="demo@reachify.com" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+            />
+          </div>
+          <div>
+            <label className="text-gray-400 text-xs ml-1">Password</label>
+            <input 
+              type="password" 
+              className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 text-white focus:border-fuchsia-500 outline-none" 
+              placeholder="demo@123" 
+              value={password} 
+              onChange={(e) => setPassword(e.target.value)} 
+            />
+          </div>
           
           <button 
             type="submit" 
             disabled={loading} 
             className="w-full py-3 bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold rounded-xl transition-all disabled:opacity-50"
           >
-            {loading ? 'Checking...' : 'Login Now'}
+            {loading ? 'Checking Server...' : 'Login Now'}
           </button>
         </form>
 
         <div className="mt-6 text-center text-xs text-gray-500">
-          Demo: demo@reachify.com | Pass: demo@123
+          Try: demo@reachify.com | demo@123
         </div>
       </div>
     </div>
