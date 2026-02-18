@@ -7,7 +7,7 @@ const Login = ({ onLogin, switchToSignup }) => {
   const [loading, setLoading] = useState(false);
 
   // ⚠️ YAHAN APNA WORKER URL DALNA ZAROORI HAI
-  const API_URL = "https://reachify-api.YOUR-WORKER-SUBDOMAIN.workers.dev"; 
+  const API_URL = "https://reachify-api.selt-3232.workers.dev"; 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
