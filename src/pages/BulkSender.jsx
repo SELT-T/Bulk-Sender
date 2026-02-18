@@ -191,7 +191,7 @@ const BulkSender = () => {
 
         </div>
 
-        {/* RIGHT: LIVE PREVIEW & LOGS */}
+        {/* RIGHT: LIVE PREVIEW & LOGS- */}
         <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden">
           
           {/* Tabs */}
