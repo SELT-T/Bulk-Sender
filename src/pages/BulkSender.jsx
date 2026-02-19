@@ -36,7 +36,7 @@ const BulkSender = () => {
     }
   };
 
-  // 2. 🚀 ULTRA-SMART EXCEL SCANNER (Hindi + Value Guessing)
+  // 2. 🚀 ULTRA-SMART EXCEL SCANNER (Any Column Order works)
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
     if (!uploadedFile) return;
@@ -48,7 +48,7 @@ const BulkSender = () => {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { defval: "" }); // Read all cells, even empty ones
+        const data = XLSX.utils.sheet_to_json(ws, { defval: "" }); 
         
         if (data.length === 0) {
            return alert("❌ Your Excel file is empty!");
@@ -57,10 +57,9 @@ const BulkSender = () => {
         const formattedContacts = data.map((row) => {
           let phoneVal = '';
           let nameVal = 'Guest';
-
           const keys = Object.keys(row);
 
-          // PASS 1: Check by Headers (English & Hindi)
+          // PASS 1: Check by Headers (English & Hindi - ANY ORDER)
           keys.forEach(key => {
             const lowerKey = key.toLowerCase();
             if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp') || lowerKey.includes('मोबा') || lowerKey.includes('फोन') || lowerKey.includes('नंबर') || lowerKey.includes('सम्पर्क')) {
@@ -71,11 +70,10 @@ const BulkSender = () => {
             }
           });
 
-          // PASS 2: Value Guessing (If Header failed, check the actual values)
+          // PASS 2: Value Guessing
           if (!phoneVal) {
              keys.forEach(key => {
                 const val = String(row[key]).trim();
-                // Check if it looks like a phone number (9 to 14 digits)
                 const numbersOnly = val.replace(/\D/g, '');
                 if (numbersOnly.length >= 9 && numbersOnly.length <= 14 && !phoneVal) {
                    phoneVal = val;
@@ -86,13 +84,13 @@ const BulkSender = () => {
           }
 
           return { phone: phoneVal, name: nameVal };
-        }).filter(c => c.phone && c.phone.length > 5); // Sirf valid length wale number rakho
+        }).filter(c => c.phone && c.phone.length > 5); 
 
         if (formattedContacts.length === 0) {
            alert("❌ Could not extract any numbers! Please check if the file contains valid phone numbers.");
         } else {
            setContacts(formattedContacts);
-           setShowContactPreview(true); // Auto-show preview
+           setShowContactPreview(true);
         }
       } catch (error) {
          alert("❌ Error reading the Excel file. Please save it as standard .xlsx and try again.");
@@ -199,7 +197,7 @@ const BulkSender = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full overflow-hidden">
         
         {/* LEFT COLUMN: SETUP */}
-        <div className="lg:col-span-3 space-y-4 overflow-y-auto pr-2 pb-10">
+        <div className="lg:col-span-3 space-y-4 overflow-y-auto pr-2 pb-10 custom-scrollbar">
           
           {/* 1. Upload Data */}
           <div className="bg-[#1e293b] p-5 rounded-2xl border border-gray-700 shadow-lg">
@@ -210,7 +208,7 @@ const BulkSender = () => {
               <p className="text-xs text-gray-300">{file ? file.name : "Upload Excel File"}</p>
             </div>
 
-            {/* LIVE CONTACT PREVIEW */}
+            {/* LIVE CONTACT PREVIEW - BOX BADA KIYA HAI */}
             {contacts.length > 0 && (
               <div className="mt-4 animate-fade-in-up">
                 <div className="flex justify-between items-center mb-2 bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
@@ -220,14 +218,14 @@ const BulkSender = () => {
                   </button>
                 </div>
                 {showContactPreview && (
-                  <div className="max-h-40 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-3 space-y-2 shadow-inner">
-                    {contacts.slice(0, 50).map((c, idx) => (
+                  <div className="max-h-64 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-3 space-y-2 shadow-inner scroll-smooth">
+                    {/* Yahan se limit hata di gayi hai, ab saare scroll karke dekh sakte ho */}
+                    {contacts.map((c, idx) => (
                       <div key={idx} className="flex justify-between items-center text-[11px] border-b border-gray-800 pb-1">
-                        <span className="text-gray-300 font-bold truncate w-1/2">{c.name}</span>
-                        <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-2 py-0.5 rounded">{c.phone}</span>
+                        <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
+                        <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-2 py-0.5 rounded flex-shrink-0">{c.phone}</span>
                       </div>
                     ))}
-                    {contacts.length > 50 && <p className="text-[10px] text-center text-gray-500 mt-2 italic">...and {contacts.length - 50} more numbers</p>}
                   </div>
                 )}
               </div>
@@ -365,7 +363,7 @@ const BulkSender = () => {
             <span>📡 Live Delivery Logs</span>
             <span className="text-xs font-normal text-gray-400">Total: {logs.length}</span>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
             {logs.length === 0 ? (
                <div className="h-full flex flex-col items-center justify-center opacity-50 text-gray-500">
                   <span className="text-4xl mb-2">⏳</span>
@@ -374,7 +372,7 @@ const BulkSender = () => {
             ) : logs.map(log => (
                <div key={log.id} className="flex flex-col bg-[#0f172a] p-3 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors">
                   <div className="flex justify-between items-center mb-1">
-                     <span className="text-xs font-bold text-gray-300 truncate w-32">{log.name}</span>
+                     <span className="text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span>
                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                        {log.status}
                      </span>
