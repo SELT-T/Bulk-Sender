@@ -54,7 +54,6 @@ const Sidebar = ({ activePage, setActivePage }) => {
                   <button onClick={() => setActivePage('grouptools')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'grouptools' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
                     Send to Groups
                   </button>
-                  {/* ✅ THE FIX: 'settings' hata kar 'personalized' kar diya */}
                   <button onClick={() => setActivePage('personalized')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'personalized' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
                     Personalized Image Sender
                   </button>
@@ -76,7 +75,8 @@ const Sidebar = ({ activePage, setActivePage }) => {
                   <button onClick={() => setActivePage('grouptools')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'grouptools' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
                     Group Contact Extractor
                   </button>
-                  <button onClick={() => alert("Backend Python se connect hone ke baad Google Map Scraper chalu hoga!")} className="w-full text-left px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-white transition-all">
+                  {/* ✅ THE FIX: Yahan 'gmap-scraper' page ka link daal diya gaya hai */}
+                  <button onClick={() => setActivePage('gmap-scraper')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'gmap-scraper' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
                     Google Map Lead Scraper
                   </button>
                 </div>
