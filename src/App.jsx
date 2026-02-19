@@ -12,8 +12,9 @@ import GroupTools from './pages/GroupTools';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Signup from './pages/Signup';
-// ✅ 1. Naya Advance Page yahan import kiya hai
 import PersonalizedSender from './pages/PersonalizedSender';
+// ✅ 1. Naya Google Map Scraper page yahan import kiya hai
+import GmapScraper from './pages/GmapScraper';
 
 function App() {
   // YADDASHT FIX: Shuruat mein hi check karo ki purana user saved hai kya?
@@ -56,8 +57,9 @@ function App() {
       case 'social': return <SocialConnect />;
       case 'settings': return <Settings />;
       case 'profile': return <Profile user={user} onLogout={handleLogout} />;
-      // ✅ 2. Yahan naya route set kar diya hai
       case 'personalized': return <PersonalizedSender />;
+      // ✅ 2. Yahan naya Google Map Scraper ka route set kar diya hai
+      case 'gmap-scraper': return <GmapScraper />;
       default: return <Dashboard setActivePage={setActivePage} />;
     }
   };
