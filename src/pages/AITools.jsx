@@ -1,268 +1,293 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 
 const AITools = () => {
-  // --- States ---
-  const [activeTool, setActiveTool] = useState('whatsapp'); // whatsapp, spintax, social, rewrite, custom
-  const [inputText, setInputText] = useState('');
-  const [resultText, setResultText] = useState('');
-  const [isGenerating, setIsGenerating] = useState(false);
-  
-  // --- AI Settings ---
-  const [tone, setTone] = useState('persuasive');
-  const [language, setLanguage] = useState('hindi');
-  const [useEmojis, setUseEmojis] = useState(true);
+  // === CORE ENGINE STATES ===
+  const [studioMode, setStudioMode] = useState('text'); // 'text', 'image', 'utility'
+  const [activeToolId, setActiveToolId] = useState('custom_prompt');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processLog, setProcessLog] = useState('');
 
+  // === INPUT STATES ===
+  const [promptInput, setPromptInput] = useState('');
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [filePreview, setFilePreview] = useState(null);
+
+  // === OUTPUT STATES ===
+  const [textOutput, setTextOutput] = useState('');
+  const [imageOutput, setImageOutput] = useState(null);
+
+  // === ADVANCED SETTINGS STATES ===
+  const [textTone, setTextTone] = useState('professional');
+  const [language, setLanguage] = useState('english');
+  const [imageAspectRatio, setImageAspectRatio] = useState('1:1');
+  const [imageStyle, setImageStyle] = useState('realistic');
+
+  const fileInputRef = useRef(null);
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
-  // TOOLS CONFIGURATION
-  const aiTools = [
-    { id: 'whatsapp', icon: '💬', name: 'WhatsApp Blast', desc: 'Create high-converting messages for campaigns.' },
-    { id: 'spintax', icon: '🔀', name: 'Anti-Ban Spintax', desc: 'Generate {word1|word2} variations to avoid bans.' },
-    { id: 'social', icon: '📱', name: 'Social Media', desc: 'Engaging captions for FB, Insta, Twitter.' },
-    { id: 'rewrite', icon: '✍️', name: 'Smart Rewriter', desc: 'Fix grammar and improve text professionalism.' },
-    { id: 'custom', icon: '🧠', name: 'Custom Prompt', desc: 'Command the AI like ChatGPT.' }
-  ];
-
-  // LOCAL SMART ENGINE (Fallback if backend API is not set yet)
-  const generateLocalResponse = (text, tool, tone, lang) => {
-    let output = "";
-    const greeting = lang === 'hindi' ? 'नमस्कार' : lang === 'hinglish' ? 'Hello dosto' : 'Hello';
-    const cta = lang === 'hindi' ? 'अधिक जानकारी के लिए संपर्क करें 👇' : 'Contact us for more details 👇';
-
-    if (tool === 'spintax') {
-      // Real Local Spintax Generation
-      let spun = text
-        .replace(/hello/gi, '{Hello|Hi|Hey|Greetings}')
-        .replace(/offer/gi, '{Offer|Deal|Discount}')
-        .replace(/buy/gi, '{Buy|Purchase|Get}')
-        .replace(/best/gi, '{Best|Top|Excellent}')
-        .replace(/price/gi, '{Price|Cost|Rate}');
-      return `Here is your Spintax format:\n\n${spun}`;
-    }
-
-    if (tool === 'whatsapp') {
-      output = `${useEmojis ? '✨ ' : ''}${greeting} {{Name}}! \n\n${text}\n\n${useEmojis ? '🚀 ' : ''}${cta}`;
-      if (tone === 'urgent') output = `🚨 URGENT UPDATE 🚨\n\n${output}`;
-      if (tone === 'formal') output = `प्रति, {{Name}}\n\n${text}\n\nसादर धन्यवाद।`;
-      return output;
-    }
-
-    if (tool === 'social') {
-      return `${useEmojis ? '🔥 ' : ''}${text} \n\n${useEmojis ? '👇 Drop your thoughts below!' : ''}\n#Trending #Viral #Update #ReachifyPro`;
-    }
-
-    if (tool === 'rewrite') {
-      return `(Refined Version - ${tone} tone):\n\n${text.charAt(0).toUpperCase() + text.slice(1)}.`;
-    }
-
-    return `AI Response based on your command:\n\n${text}`;
+  // --- TOOL DEFINITIONS (The Brain's Capabilities) ---
+  const toolsConfig = {
+    text: [
+      { id: 'custom_prompt', icon: '🧠', name: 'Universal ChatBot', desc: 'Ask anything, get answers like ChatGPT.' },
+      { id: 'social_caption', icon: '📱', name: 'Viral Social Captions', desc: 'Instagram, LinkedIn, Twitter posts with hashtags.' },
+      { id: 'blog_writer', icon: '📝', name: 'Article / Blog Writer', desc: 'SEO optimized long-form content.' },
+      { id: 'spintax_gen', icon: '🔀', name: 'Anti-Ban Spintax', desc: 'Generate {Hi|Hello} variations for bulk sending.' },
+      { id: 'rewriter', icon: '✍️', name: 'Pro Rewriter & Fixer', desc: 'Improve grammar, tone, and clarity.' },
+    ],
+    image: [
+      { id: 'text_to_image', icon: '🎨', name: 'Text-to-Image Gen', desc: 'Describe it, AI will draw it (DALL-E style).' },
+      // Future Placeholder for Video Gen (Requires heavy backend)
+      { id: 'video_gen', icon: '🎥', name: 'Text-to-Video (Beta)', desc: 'Generate short clips from text prompts.', locked: true },
+    ],
+    utility: [
+      { id: 'bg_remover', icon: '🔳', name: 'Background Remover', desc: 'One-click transparent background.' },
+      { id: 'watermark_remover', icon: '💧', name: 'Watermark Eraser', desc: 'Clean up images magically.' },
+      { id: 'photo_enhancer', icon: '✨', name: 'Photo Upscaler', desc: 'Make blurry images HD sharp.' },
+    ]
   };
 
-  // MAIN GENERATION FUNCTION
-  const handleGenerate = async () => {
-    if (!inputText.trim()) return alert("❌ Please enter some text or topic first!");
-    
-    setIsGenerating(true);
-    setResultText('');
+  const currentToolConfig = toolsConfig[studioMode].find(t => t.id === activeToolId);
 
+  // --- FILE HANDLING ---
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setUploadedFile(file);
+      setFilePreview(URL.createObjectURL(file));
+      setImageOutput(null); // Clear previous output
+    }
+  };
+
+  // --- THE "ENGINE" (Simulation & API Trigger) ---
+  const activateEngine = async () => {
+    if (studioMode === 'text' && !promptInput.trim()) return alert("❌ Please enter a prompt first!");
+    if (studioMode === 'image' && activeToolId === 'text_to_image' && !promptInput.trim()) return alert("❌ Describe the image you want!");
+    if (studioMode === 'utility' && !uploadedFile) return alert("❌ Please upload an image first!");
+
+    setIsProcessing(true);
+    setProcessLog("Initializing Neural Net...");
+    setTextOutput(''); setImageOutput(null);
+
+    // SIMULATION SEQUENCE (Kyuki abhi asli backend nahi hai)
+    // Jab asli backend lagega, yahan asli fetch() call aayega.
     try {
-      // TRY REAL API FIRST
-      const res = await fetch(`${API_URL}/generate-ai`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: user.email,
-          tool: activeTool,
-          prompt: inputText,
-          tone: tone,
-          language: language,
-          emojis: useEmojis
-        })
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        setResultText(data.result);
-      } else {
-        // IF API FAILS OR NOT SETUP, USE SMART LOCAL ENGINE
-        setTimeout(() => {
-          setResultText(generateLocalResponse(inputText, activeTool, tone, language));
-          setIsGenerating(false);
-        }, 1500); // Simulated delay for realism
-        return; 
-      }
-    } catch (err) {
-      // FALLBACK TO SMART ENGINE
-      setTimeout(() => {
-        setResultText(generateLocalResponse(inputText, activeTool, tone, language));
-        setIsGenerating(false);
-      }, 1500);
-      return;
-    }
-
-    setIsGenerating(false);
-  };
-
-  const handleCopy = () => {
-    if (!resultText) return;
-    navigator.clipboard.writeText(resultText);
-    alert("✅ Content copied to clipboard!");
-  };
-
-  return (
-    <div className="flex flex-col h-[calc(100vh-80px)] max-w-[1400px] mx-auto p-2 animate-fade-in">
+      await simulateStep("Translating request to machine code...", 1000);
       
-      {/* HEADER */}
-      <div className="flex justify-between items-center bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-xl mb-4">
-         <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-               🧠 Reachify Intelligence Hub
-               <span className="px-2 py-0.5 bg-fuchsia-500/10 border border-fuchsia-500/30 rounded text-[10px] text-fuchsia-400 flex items-center gap-1.5">
-                 <span className="w-1.5 h-1.5 bg-fuchsia-500 rounded-full animate-pulse"></span> AI Active
-               </span>
+      if (studioMode === 'text') {
+         await simulateStep(`Generating text with ${textTone} tone in ${language}...`, 2000);
+         // --- SIMULATED TEXT RESPONSE ---
+         let simRes = `[SIMULATION MODE - Connect Backend for Real AI]\n\nHere is a ${textTone} output for: "${promptInput.substring(0, 20)}..."\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. This is placeholder text demonstrating where the actual AI response will appear once connected to OpenAI or similar APIs. It will respect your language selection (${language}).\n\n#ReachifyAI #Innovation`;
+         if(activeToolId === 'spintax_gen') simRes = "{Hello|Hi|Hey} there! Check out our {new|latest|exclusive} offer specially for {you|our valued members}.";
+         setTextOutput(simRes);
+
+      } else if (studioMode === 'image') {
+         await simulateStep(`Synthesizing pixels based on description...`, 2500);
+         await simulateStep(`Applying ${imageStyle} style and rendering...`, 1500);
+         // --- SIMULATED IMAGE RESPONSE ---
+         // Using a placeholder image service to simulate generation
+         setImageOutput(`https://picsum.photos/seed/${Math.random()}/512/512`);
+
+      } else if (studioMode === 'utility') {
+         await simulateStep(`Analyzing image structure...`, 1500);
+         await simulateStep(`Performing ${currentToolConfig.name} operation...`, 2000);
+         // --- SIMULATED UTILITY RESPONSE ---
+         // Just showing the original image back for now as "processed"
+         setImageOutput(filePreview); 
+      }
+      
+      await simulateStep("Finalizing output...", 500);
+      setProcessLog("Completed ✅");
+
+    } catch (error) {
+       setProcessLog("Error in processing engine.");
+       alert("Engine Failure. Check console.");
+    }
+    setIsProcessing(false);
+  };
+
+  // Helper for simulation delays
+  const simulateStep = (log, ms) => new Promise(resolve => {
+    setProcessLog(log);
+    setTimeout(resolve, ms);
+  });
+
+
+  // --- UI HELPERS ---
+  const handleSwitchMode = (mode) => {
+    setStudioMode(mode);
+    setActiveToolId(toolsConfig[mode][0].id); // Reset to first tool in category
+    setPromptInput(''); setUploadedFile(null); setFilePreview(null); setTextOutput(''); setImageOutput(null);
+  };
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(textOutput);
+    alert("✅ Copied to clipboard!");
+  };
+
+  // ==============================================================
+  // MAIN UI RENDER
+  // ==============================================================
+  return (
+    <div className="flex flex-col h-[calc(100vh-80px)] max-w-[1600px] mx-auto p-2 animate-fade-in">
+      
+      {/* 1. TOP STUDIO HEADER & MODE SWITCHER */}
+      <div className="bg-[#1e293b] p-3 rounded-2xl border border-gray-700 shadow-xl mb-4 flex justify-between items-center">
+         <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-black bg-gradient-to-r from-fuchsia-400 via-purple-400 to-indigo-400 bg-clip-text text-transparent flex items-center gap-2">
+               ⚛️ Ultimate AI Engine
             </h2>
-            <p className="text-gray-400 text-xs mt-1">Command the AI to write, spin, and optimize your campaign content instantly.</p>
+            <div className="flex bg-[#0f172a] p-1 rounded-xl border border-gray-600/50">
+               <button onClick={() => handleSwitchMode('text')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${studioMode === 'text' ? 'bg-fuchsia-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}><span>📝</span> Text & Copy</button>
+               <button onClick={() => handleSwitchMode('image')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${studioMode === 'image' ? 'bg-fuchsia-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}><span>🎨</span> Image Gen</button>
+               <button onClick={() => handleSwitchMode('utility')} className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-all ${studioMode === 'utility' ? 'bg-fuchsia-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}><span>🛠️</span> Editing Tools</button>
+            </div>
+         </div>
+         <div className={`text-[10px] font-mono px-3 py-1 rounded-full border ${isProcessing ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400 animate-pulse' : 'bg-green-500/10 border-green-500 text-green-400'}`}>
+            Status: {isProcessing ? processLog : 'Engine Ready'}
          </div>
       </div>
 
       <div className="flex-1 flex gap-4 overflow-hidden">
         
-        {/* LEFT COLUMN: TOOLS & SETTINGS */}
-        <div className="w-[320px] flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar pb-4">
-           
-           {/* AI Tools Selector */}
-           <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
-             <h3 className="text-white font-bold text-xs mb-3 text-gray-400 uppercase tracking-wider">Select AI Agent</h3>
-             <div className="space-y-2">
-               {aiTools.map(tool => (
+        {/* 2. LEFT PANEL: TOOL SELECTOR */}
+        <div className="w-[260px] bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden">
+           <div className="p-3 bg-[#0f172a] border-b border-gray-700 font-bold text-white text-sm tracking-wider">
+              AVAILABLE MODULES
+           </div>
+           <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+              {toolsConfig[studioMode].map(tool => (
                  <button 
                    key={tool.id}
-                   onClick={() => setActiveTool(tool.id)}
-                   className={`w-full flex items-start gap-3 p-3 rounded-lg border text-left transition-all ${activeTool === tool.id ? 'bg-fuchsia-600/20 border-fuchsia-500 shadow-[0_0_10px_rgba(217,70,239,0.2)]' : 'bg-[#0f172a] border-gray-700 hover:border-gray-500'}`}
+                   onClick={() => !tool.locked && setActiveToolId(tool.id)}
+                   disabled={tool.locked}
+                   className={`w-full text-left p-3 rounded-xl border transition-all group ${tool.locked ? 'opacity-50 cursor-not-allowed bg-[#0f172a] border-gray-800' : activeToolId === tool.id ? 'bg-fuchsia-600/10 border-fuchsia-500/50 shadow-[inset_0_0_10px_rgba(217,70,239,0.1)]' : 'bg-[#0f172a] border-gray-700/50 hover:border-fuchsia-500/30 hover:bg-[#0f172a]/80'}`}
                  >
-                   <span className="text-2xl">{tool.icon}</span>
-                   <div>
-                     <p className={`font-bold text-sm ${activeTool === tool.id ? 'text-fuchsia-400' : 'text-gray-200'}`}>{tool.name}</p>
-                     <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">{tool.desc}</p>
-                   </div>
+                    <div className="flex items-center justify-between mb-1">
+                       <span className="text-xl">{tool.icon}</span>
+                       {tool.locked && <span className="text-[9px] bg-gray-700 px-1.5 rounded text-gray-300">SOON</span>}
+                    </div>
+                    <h4 className={`font-bold text-xs ${activeToolId === tool.id ? 'text-fuchsia-300' : 'text-gray-200 group-hover:text-white'}`}>{tool.name}</h4>
+                    <p className="text-[10px] text-gray-500 leading-tight mt-1">{tool.desc}</p>
                  </button>
-               ))}
-             </div>
-           </div>
-
-           {/* Settings Panel */}
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-1">
-             <h3 className="text-white font-bold text-xs mb-4 text-gray-400 uppercase tracking-wider">Context & Tuning</h3>
-             
-             <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] text-gray-400 block mb-1">Output Language</label>
-                  <select value={language} onChange={e => setLanguage(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none focus:border-fuchsia-500">
-                     <option value="hindi">Hindi (हिंदी)</option>
-                     <option value="english">English</option>
-                     <option value="hinglish">Hinglish (Hindi + English)</option>
-                     <option value="marathi">Marathi (मराठी)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10px] text-gray-400 block mb-1">Brand Tone</label>
-                  <select value={tone} onChange={e => setTone(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none focus:border-fuchsia-500">
-                     <option value="persuasive">Persuasive / Sales</option>
-                     <option value="professional">Corporate / Professional</option>
-                     <option value="friendly">Friendly / Casual</option>
-                     <option value="formal">Formal / Political</option>
-                     <option value="urgent">Urgent / Alert</option>
-                  </select>
-                </div>
-
-                <div className="flex items-center justify-between bg-[#0f172a] p-3 rounded border border-gray-600">
-                   <span className="text-xs text-gray-300">Include Emojis 🎉</span>
-                   <input type="checkbox" checked={useEmojis} onChange={e => setUseEmojis(e.target.checked)} className="w-4 h-4 accent-fuchsia-500" />
-                </div>
-             </div>
+              ))}
            </div>
         </div>
 
-        {/* CENTER COLUMN: INPUT AREA */}
-        <div className="flex-1 bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex flex-col relative overflow-hidden">
-           <div className="p-4 border-b border-gray-700 bg-[#0f172a] flex justify-between items-center">
-             <h3 className="text-white font-bold text-sm">
-                Command Terminal <span className="text-gray-500 font-normal">({aiTools.find(t=>t.id===activeTool)?.name})</span>
-             </h3>
+        {/* 3. MIDDLE PANEL: INPUT & CONTROLS (The Command Center) */}
+        <div className="flex-1 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col relative overflow-hidden">
+           <div className="p-3 bg-[#0f172a] border-b border-gray-700 flex items-center justify-between">
+              <h3 className="font-bold text-white text-sm flex items-center gap-2">
+                 ⚡ Command Center <span className="text-gray-500 font-normal">:: {currentToolConfig?.name}</span>
+              </h3>
            </div>
            
-           <div className="p-4 flex-1 flex flex-col gap-4">
-              <label className="text-xs text-gray-400">
-                 {activeTool === 'spintax' ? 'Paste your message here to generate anti-ban variations:' : 
-                  activeTool === 'custom' ? 'Give the AI a direct instruction:' : 
-                  'Enter your raw topic, draft, or bullet points:'}
-              </label>
+           <div className="flex-1 p-5 flex flex-col gap-4 overflow-y-auto custom-scrollbar bg-gradient-to-br from-[#1e293b] to-[#0f172a]">
               
-              <textarea 
-                 value={inputText}
-                 onChange={e => setInputText(e.target.value)}
-                 className="flex-1 w-full bg-[#0f172a] border border-gray-600 rounded-xl p-4 text-white text-sm outline-none focus:border-fuchsia-500 resize-none custom-scrollbar"
-                 placeholder={
-                    activeTool === 'whatsapp' ? 'e.g. Write an invitation for a kitty party at Hotel IVY...' :
-                    activeTool === 'spintax' ? 'Hello, we have a new offer. Buy now for the best price.' :
-                    'Type your thoughts here and let AI do the magic...'
-                 }
-              ></textarea>
+              {/* DYNAMIC INPUT AREA BASED ON MODE */}
+              {(studioMode === 'text' || (studioMode === 'image' && activeToolId === 'text_to_image')) && (
+                 <div className="flex-1 flex flex-col">
+                    <label className="text-xs text-fuchsia-400 font-bold mb-2">Your Prompt / Instructions:</label>
+                    <textarea 
+                       value={promptInput}
+                       onChange={e => setPromptInput(e.target.value)}
+                       className="flex-1 w-full bg-[#0f172a]/80 border border-gray-600/50 rounded-xl p-4 text-white font-mono text-sm outline-none focus:border-fuchsia-500 resize-none focus:shadow-[0_0_15px_rgba(217,70,239,0.2)] transition-all"
+                       placeholder={studioMode === 'image' ? "A futuristic cyberpunk city at sunset, neon lights, flying cars, highly detailed, 8k render..." : "Write an engaging caption for a new shoe launch..."}
+                    ></textarea>
+                 </div>
+              )}
 
+              {studioMode === 'utility' && (
+                 <div className="flex-1 flex flex-col justify-center">
+                    <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
+                    <div onClick={() => fileInputRef.current.click()} className={`flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${filePreview ? 'border-fuchsia-500/50 bg-[#0f172a]' : 'border-gray-600 hover:border-fuchsia-400 hover:bg-[#0f172a]/50'}`}>
+                       {filePreview ? (
+                          <img src={filePreview} alt="Upload" className="max-h-[40vh] object-contain rounded-lg shadow-xl" />
+                       ) : (
+                          <>
+                             <span className="text-5xl mb-3 opacity-50">📤</span>
+                             <p className="text-gray-300 font-bold">Drop Image or Click to Upload</p>
+                             <p className="text-xs text-gray-500 mt-1">Supports JPG, PNG for processing</p>
+                          </>
+                       )}
+                    </div>
+                 </div>
+              )}
+
+              {/* GENERATE BUTTON */}
               <button 
-                onClick={handleGenerate} 
-                disabled={isGenerating || !inputText.trim()}
-                className="w-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-[1.01] text-white py-3.5 rounded-xl font-bold shadow-[0_0_15px_rgba(217,70,239,0.4)] transition-all disabled:opacity-50 disabled:scale-100 flex justify-center items-center gap-2"
+                onClick={activateEngine} 
+                disabled={isProcessing || (studioMode==='utility' && !filePreview)}
+                className="w-full bg-gradient-to-r from-fuchsia-600 via-purple-600 to-indigo-600 hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(217,70,239,0.4)] text-white py-4 rounded-xl font-black text-sm tracking-wider uppercase shadow-lg transition-all disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed relative overflow-hidden group"
               >
-                 {isGenerating ? (
-                   <><span className="animate-spin text-xl">⚙️</span> Processing AI Logic...</>
-                 ) : (
-                   <>✨ Generate Content</>
-                 )}
+                 <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300"></div>
+                 <span className="relative flex items-center justify-center gap-2">
+                   {isProcessing ? <><span className="animate-spin">⚙️</span> PROCESSING...</> : <>🚀 ACTIVATE ENGINE</>}
+                 </span>
               </button>
            </div>
         </div>
 
-        {/* RIGHT COLUMN: OUTPUT AREA */}
-        <div className="flex-1 bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex flex-col overflow-hidden relative">
-           {/* Code Editor Style Top Bar */}
-           <div className="p-3 border-b border-gray-700 bg-[#0f172a] flex justify-between items-center">
-             <div className="flex items-center gap-2">
-                <div className="flex gap-1.5">
-                   <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                   <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                </div>
-                <span className="text-gray-400 text-xs ml-2 font-mono">Output.txt</span>
-             </div>
-             
-             {resultText && (
-               <button onClick={handleCopy} className="text-xs bg-fuchsia-600 hover:bg-fuchsia-500 text-white px-3 py-1.5 rounded transition-all font-bold shadow-md">
-                 📋 Copy Result
-               </button>
-             )}
-           </div>
-
-           <div className="flex-1 p-5 bg-[#0f172a]/50 overflow-y-auto custom-scrollbar relative">
-              {isGenerating ? (
-                 <div className="h-full flex flex-col items-center justify-center space-y-4">
-                    <div className="w-12 h-12 border-4 border-fuchsia-500/30 border-t-fuchsia-500 rounded-full animate-spin"></div>
-                    <p className="text-fuchsia-400 text-sm font-mono animate-pulse">Running Neural Models...</p>
-                 </div>
-              ) : resultText ? (
-                 <div className="text-gray-200 text-sm whitespace-pre-wrap font-sans leading-relaxed">
-                    {resultText}
-                 </div>
-              ) : (
-                 <div className="h-full flex flex-col items-center justify-center opacity-40 text-gray-500">
-                    <span className="text-6xl mb-4">🪄</span>
-                    <p className="font-bold">Awaiting Instructions</p>
-                    <p className="text-xs text-center mt-2 px-10">Configure settings, type your prompt, and hit generate to see the magic.</p>
+        {/* 4. RIGHT PANEL: OUTPUT & ADVANCED SETTINGS */}
+        <div className="w-[350px] bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden">
+           
+           {/* SETTINGS SECTION (TOP HALF) */}
+           <div className="p-4 border-b border-gray-700/50 bg-[#0f172a]">
+              <h3 className="text-white font-bold text-xs mb-3 tracking-wider text-gray-400">ENGINE CONFIGURATION</h3>
+              
+              {studioMode === 'text' && (
+                 <div className="space-y-3 animate-fade-in">
+                    <div><label className="text-[10px] text-gray-500 block mb-1">Tone / Style</label><select value={textTone} onChange={e=>setTextTone(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-xs text-white outline-none"><option value="professional">🕴️ Professional</option><option value="engaging">🔥 Engaging / Viral</option><option value="persuasive">💰 Persuasive (Sales)</option><option value="friendly">🤝 Friendly</option></select></div>
+                    <div><label className="text-[10px] text-gray-500 block mb-1">Output Language</label><select value={language} onChange={e=>setLanguage(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-xs text-white outline-none"><option value="english">English</option><option value="hindi">Hindi (हिंदी)</option><option value="hinglish">Hinglish</option></select></div>
                  </div>
               )}
+
+              {studioMode === 'image' && activeToolId === 'text_to_image' && (
+                 <div className="space-y-3 animate-fade-in">
+                    <div><label className="text-[10px] text-gray-500 block mb-1">Aspect Ratio</label><select value={imageAspectRatio} onChange={e=>setImageAspectRatio(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-xs text-white outline-none"><option value="1:1">Square (1:1)</option><option value="16:9">Landscape (16:9)</option><option value="9:16">Portrait (9:16)</option></select></div>
+                    <div><label className="text-[10px] text-gray-500 block mb-1">Art Style</label><select value={imageStyle} onChange={e=>setImageStyle(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-xs text-white outline-none"><option value="realistic">📸 Realistic Photo</option><option value="cinematic">🎬 Cinematic</option><option value="digital_art">🎨 Digital Art</option><option value="3d_render">🧊 3D Render</option></select></div>
+                 </div>
+              )}
+              
+              {studioMode === 'utility' && (
+                 <div className="text-xs text-gray-500 italic p-2 text-center">No extra settings for this tool.</div>
+              )}
            </div>
+
+           {/* OUTPUT SECTION (BOTTOM HALF - FLEX GROW) */}
+           <div className="flex-1 flex flex-col bg-[#0f172a]/50 relative overflow-hidden">
+              <div className="p-2 border-b border-gray-700/30 flex justify-between items-center bg-[#0f172a]">
+                 <span className="text-xs text-fuchsia-400 font-bold ml-2">GENERATED RESULT</span>
+                 {textOutput && <button onClick={copyToClipboard} className="text-[10px] bg-fuchsia-600/20 text-fuchsia-300 px-2 py-1 rounded hover:bg-fuchsia-600 hover:text-white transition-all">📋 Copy Text</button>}
+                 {(imageOutput && studioMode!=='text') && <a href={imageOutput} download="ai_generated.jpg" className="text-[10px] bg-green-600/20 text-green-300 px-2 py-1 rounded hover:bg-green-600 hover:text-white transition-all">💾 Download</a>}
+              </div>
+              
+              <div className="flex-1 p-4 overflow-y-auto custom-scrollbar relative flex items-center justify-center">
+                 {isProcessing ? (
+                    <div className="flex flex-col items-center justify-center space-y-4 z-10">
+                       <div className="relative w-20 h-20">
+                          <div className="absolute inset-0 rounded-full border-4 border-t-fuchsia-500 border-r-purple-500 border-b-indigo-500 border-l-transparent animate-spin"></div>
+                          <div className="absolute inset-2 rounded-full border-4 border-t-transparent border-r-fuchsia-500 border-b-purple-500 border-l-indigo-500 animate-spin-slow opacity-70"></div>
+                       </div>
+                       <p className="text-fuchsia-300 text-sm font-bold animate-pulse tracking-wider">{processLog}</p>
+                    </div>
+                 ) : textOutput ? (
+                    <div className="w-full h-full text-gray-200 text-sm whitespace-pre-wrap font-mono leading-relaxed animate-fade-in">{textOutput}</div>
+                 ) : imageOutput ? (
+                    <img src={imageOutput} alt="Generated" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-gray-700/50 animate-fade-in" />
+                 ) : (
+                    <div className="flex flex-col items-center justify-center opacity-30 text-gray-500">
+                       <span className="text-6xl mb-4 grayscale">🧬</span>
+                       <p className="font-bold tracking-widest">AWAITING INPUT</p>
+                    </div>
+                 )}
+                 {/* Background Grid effect for empty state */}
+                 {!isProcessing && !textOutput && !imageOutput && (
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none"></div>
+                 )}
+              </div>
+           </div>
+
         </div>
 
       </div>
