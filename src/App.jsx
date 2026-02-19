@@ -12,9 +12,11 @@ import GroupTools from './pages/GroupTools';
 import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Signup from './pages/Signup';
+// ✅ 1. Naya Advance Page yahan import kiya hai
+import PersonalizedSender from './pages/PersonalizedSender';
 
 function App() {
-  // ✅ 1. YADDASHT FIX: Shuruat mein hi check karo ki purana user saved hai kya?
+  // YADDASHT FIX: Shuruat mein hi check karo ki purana user saved hai kya?
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('reachify_user');
     return savedUser ? JSON.parse(savedUser) : null;
@@ -23,7 +25,7 @@ function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [authMode, setAuthMode] = useState('login');
 
-  // ✅ 2. Jab bhi User login/logout ho, use Memory (LocalStorage) mein save karo
+  // Jab bhi User login/logout ho, use Memory (LocalStorage) mein save karo
   useEffect(() => {
     if (user) {
       localStorage.setItem('reachify_user', JSON.stringify(user));
@@ -54,6 +56,8 @@ function App() {
       case 'social': return <SocialConnect />;
       case 'settings': return <Settings />;
       case 'profile': return <Profile user={user} onLogout={handleLogout} />;
+      // ✅ 2. Yahan naya route set kar diya hai
+      case 'personalized': return <PersonalizedSender />;
       default: return <Dashboard setActivePage={setActivePage} />;
     }
   };
