@@ -48,14 +48,14 @@ const Sidebar = ({ activePage, setActivePage }) => {
               
               {openMenu === 'campaigns' && (
                 <div className="ml-9 mt-1 space-y-1 border-l border-gray-700/50 pl-3">
-                  {/* Sabhi buttons me onClick laga diya gaya hai */}
                   <button onClick={() => setActivePage('campaign')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'campaign' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
                     Bulk Sender (Excel/CSV)
                   </button>
                   <button onClick={() => setActivePage('grouptools')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'grouptools' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
                     Send to Groups
                   </button>
-                  <button onClick={() => setActivePage('settings')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'settings' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
+                  {/* ✅ THE FIX: 'settings' hata kar 'personalized' kar diya */}
+                  <button onClick={() => setActivePage('personalized')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'personalized' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
                     Personalized Image Sender
                   </button>
                 </div>
@@ -73,7 +73,6 @@ const Sidebar = ({ activePage, setActivePage }) => {
               
               {openMenu === 'extractors' && (
                 <div className="ml-9 mt-1 space-y-1 border-l border-gray-700/50 pl-3">
-                  {/* Yahan bhi onClick jod diya hai */}
                   <button onClick={() => setActivePage('grouptools')} className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-all ${activePage === 'grouptools' ? 'text-fuchsia-400 font-bold' : 'text-gray-400 hover:text-white'}`}>
                     Group Contact Extractor
                   </button>
