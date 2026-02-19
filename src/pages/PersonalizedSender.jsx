@@ -1,22 +1,33 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const PersonalizedSender = () => {
   // --- States ---
   const [contacts, setContacts] = useState([]);
+  const [showContactPreview, setShowContactPreview] = useState(false);
   const [mediaPreview, setMediaPreview] = useState(null);
   const [mediaFile, setMediaFile] = useState(null);
+  const [waStatus, setWaStatus] = useState('checking'); // Real API Status
   
-  // --- Pro Studio States ---
+  // --- Pro Studio Typography States ---
   const [stickerText, setStickerText] = useState("{{Name}}");
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
-  const [fontFamily, setFontFamily] = useState("Arial, sans-serif");
-  const [textColor, setTextColor] = useState("#ffffff");
-  const [bgColor, setBgColor] = useState("rgba(0, 0, 0, 0.5)");
-  const [borderStyle, setBorderStyle] = useState("none");
-  const [stickerWidth, setStickerWidth] = useState(300);
   
+  // Font Styling
+  const [fontFamily, setFontFamily] = useState("Arial, sans-serif");
+  const [fontWeight, setFontWeight] = useState("bold");
+  const [fontStyle, setFontStyle] = useState("normal");
+  
+  // Colors & Borders
+  const [textColor, setTextColor] = useState("#ffffff");
+  const [textOutline, setTextOutline] = useState("none"); // Font Border
+  const [bgColor, setBgColor] = useState("rgba(0, 0, 0, 0.4)");
+  const [boxBorder, setBoxBorder] = useState("none"); 
+  
+  // Dimensions
+  const [stickerWidth, setStickerWidth] = useState(300);
   const [stickerPos, setStickerPos] = useState({ x: 50, y: 70 }); 
+  
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   
@@ -32,6 +43,21 @@ const PersonalizedSender = () => {
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
+  // 0. REAL API CHECK
+  useEffect(() => {
+    const checkApi = async () => {
+      try {
+        const res = await fetch(`${API_URL}/get-settings`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
+        });
+        const data = await res.json();
+        if (data.instance_id && data.access_token) setWaStatus('connected');
+        else setWaStatus('disconnected');
+      } catch (err) { setWaStatus('disconnected'); }
+    };
+    checkApi();
+  }, [user.email]);
+
   // 1. Media Upload
   const handleMediaUpload = (e) => {
     const file = e.target.files[0];
@@ -43,7 +69,7 @@ const PersonalizedSender = () => {
     }
   };
 
-  // 2. Smart Excel Scanner (Auto Detect)
+  // 2. Smart Excel Scanner with Preview
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -58,9 +84,7 @@ const PersonalizedSender = () => {
         
         const formattedContacts = data.map((row) => {
           let phoneVal = ''; let nameVal = 'Guest';
-          const keys = Object.keys(row);
-
-          keys.forEach(key => {
+          Object.keys(row).forEach(key => {
             const lowerKey = key.toLowerCase();
             if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp') || lowerKey.includes('मोबा')) {
               if (!phoneVal && row[key]) phoneVal = String(row[key]).trim();
@@ -71,7 +95,7 @@ const PersonalizedSender = () => {
           });
 
           if (!phoneVal) {
-             keys.forEach(key => {
+             Object.keys(row).forEach(key => {
                 const val = String(row[key]).trim();
                 const numbersOnly = val.replace(/\D/g, '');
                 if (numbersOnly.length >= 9 && numbersOnly.length <= 14 && !phoneVal) phoneVal = val;
@@ -84,6 +108,7 @@ const PersonalizedSender = () => {
         if (formattedContacts.length > 0) {
            setContacts(formattedContacts);
            setStats({ sent: 0, failed: 0, total: formattedContacts.length });
+           setShowContactPreview(true); // Automatically open preview
         } else alert("❌ No valid numbers found in Excel.");
       } catch (error) { alert("❌ Error reading Excel."); }
     };
@@ -112,8 +137,9 @@ const PersonalizedSender = () => {
     }
   };
 
-  // 4. API Campaign Trigger
+  // 4. REAL API Campaign Trigger
   const startBlast = async () => {
+    if (waStatus !== 'connected') return alert("❌ ERROR: WhatsApp is Disconnected! Please configure your API Provider in 'Advanced Settings' before starting.");
     if (!mediaFile) return alert("❌ Please upload a Base Image to personalize!");
     if (contacts.length === 0) return alert("❌ Please upload Contacts List!");
     
@@ -130,7 +156,11 @@ const PersonalizedSender = () => {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: user.email, phone: contact.phone, message: "Here is your personalized invite!", media_type: 'image',
-            sticker_config: { name_text: contact.name, sub_text: subText, color: textColor, bg_color: bgColor, font: fontFamily, width: stickerWidth, border: borderStyle, x: stickerPos.x, y: stickerPos.y }
+            sticker_config: { 
+               name_text: contact.name, sub_text: subText, color: textColor, bg_color: bgColor, 
+               font: fontFamily, weight: fontWeight, style: fontStyle, text_outline: textOutline,
+               width: stickerWidth, border: boxBorder, x: stickerPos.x, y: stickerPos.y 
+            }
           })
         });
 
@@ -148,106 +178,159 @@ const PersonalizedSender = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] max-w-7xl mx-auto p-2 animate-fade-in" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
+    <div className="flex flex-col h-[calc(100vh-80px)] max-w-[1400px] mx-auto p-2 animate-fade-in" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
       
-      {/* Studio Header */}
+      {/* STUDIO HEADER */}
       <div className="flex justify-between items-center bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-xl mb-4">
          <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-2">✨ Personalized Image Studio</h2>
+            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+               ✨ Pro Graphic Studio
+               {waStatus === 'checking' && <span className="text-xs text-gray-400">Checking API...</span>}
+               {waStatus === 'connected' && <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[10px] text-green-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> API Linked</span>}
+               {waStatus === 'disconnected' && <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[10px] text-red-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> API Disconnected</span>}
+            </h2>
             <p className="text-gray-400 text-xs mt-1">Design once, generate hundreds of personalized images automatically.</p>
          </div>
          <div className="flex items-center gap-4">
             <div className="bg-[#0f172a] px-3 py-1.5 rounded-lg border border-gray-600 flex items-center gap-2">
-              <span className="text-gray-400 text-xs">Delay (sec):</span>
-              <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-10 bg-transparent text-white font-bold text-center outline-none text-sm" />
+              <span className="text-gray-400 text-xs">Delay:</span>
+              <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 bg-transparent text-white font-bold text-center outline-none text-sm" />
             </div>
             {campaignState === 'running' ? (
-               <button onClick={() => stopRef.current = true} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all">⏹ Stop Campaign</button>
+               <button onClick={() => stopRef.current = true} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all">⏹ Stop Blast</button>
             ) : (
-               <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50">🚀 Blast Images</button>
+               <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview || waStatus !== 'connected'} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                  🚀 Start Auto-Blast
+               </button>
             )}
          </div>
       </div>
 
-      <div className="flex-1 flex gap-6 overflow-hidden">
+      <div className="flex-1 flex gap-4 overflow-hidden">
         
-        {/* LEFT: TOOLS PANEL */}
-        <div className="w-80 flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar">
+        {/* LEFT: ADVANCED TOOLS PANEL */}
+        <div className="w-[320px] flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar pb-4">
            
            {/* Step 1: Base Image */}
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md">
+           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-shrink-0">
              <h3 className="text-white font-bold text-sm mb-2">1. Base Image</h3>
-             <div className="relative group cursor-pointer border-2 border-dashed border-gray-600 rounded-lg p-4 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
+             <div className="relative group cursor-pointer border-2 border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
                <input type="file" accept="image/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                <p className="text-2xl mb-1">🖼️</p>
-               <p className="text-[10px] text-gray-400 truncate">{mediaFile ? mediaFile.name : "Upload Blank Card/Invite"}</p>
+               <p className="text-[10px] text-gray-400 truncate px-2">{mediaFile ? mediaFile.name : "Upload Blank Card/Invite"}</p>
              </div>
            </div>
 
-           {/* Step 2: Excel Data */}
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md">
+           {/* Step 2: Excel Data & Preview */}
+           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-shrink-0">
              <h3 className="text-white font-bold text-sm mb-2">2. Audience List</h3>
              <div className="relative group cursor-pointer border-2 border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
                <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                <p className="text-xl mb-1">📊</p>
-               <p className="text-[10px] text-gray-400">{contacts.length > 0 ? `✅ ${contacts.length} Contacts Ready` : "Upload Excel File"}</p>
+               <p className="text-[10px] text-gray-400">{contacts.length > 0 ? `Update Excel File` : "Upload Excel File"}</p>
              </div>
+             
+             {/* CONTACT PREVIEW LIST FIX */}
+             {contacts.length > 0 && (
+                <div className="mt-3 animate-fade-in-up">
+                  <div className="flex justify-between items-center bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
+                    <span className="text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
+                    <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded">
+                      {showContactPreview ? 'Hide ▲' : 'View ▼'}
+                    </button>
+                  </div>
+                  {showContactPreview && (
+                    <div className="max-h-32 mt-2 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner custom-scrollbar">
+                      {contacts.map((c, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-[10px] border-b border-gray-800 pb-1">
+                          <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
+                          <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+             )}
            </div>
 
-           {/* Step 3: Typography Controls */}
+           {/* Step 3: Advanced Typography Controls */}
            <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-1">
-             <h3 className="text-white font-bold text-sm mb-3">3. Sticker Style</h3>
+             <h3 className="text-white font-bold text-sm mb-3">3. Pro Text Settings</h3>
              
-             <div className="space-y-3">
+             <div className="space-y-4">
                 <div>
                   <label className="text-[10px] text-gray-400 mb-1 block">Sub-Text (Line 2)</label>
-                  <input type="text" value={subText} onChange={e => setSubText(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none focus:border-fuchsia-500"/>
+                  <input type="text" value={subText} onChange={e => setSubText(e.target.value)} placeholder="e.g. सपरिवार आमंत्रित हैं" className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none focus:border-fuchsia-500"/>
                 </div>
                 
-                <div>
-                  <label className="text-[10px] text-gray-400 mb-1 block">Font Style</label>
-                  <select value={fontFamily} onChange={e => setFontFamily(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none">
-                     <option value="Arial, sans-serif">Modern (Arial)</option>
-                     <option value="'Times New Roman', serif">Classic (Times)</option>
-                     <option value="'Courier New', monospace">Typewriter (Courier)</option>
-                     <option value="Georgia, serif">Elegant (Georgia)</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] text-gray-400 mb-1 block">Font Style</label>
+                    <select value={fontFamily} onChange={e => setFontFamily(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-xs text-white outline-none">
+                       <option value="Arial, sans-serif">Modern (Arial)</option>
+                       <option value="'Times New Roman', serif">Classic (Times)</option>
+                       <option value="'Courier New', monospace">Typewriter</option>
+                       <option value="Georgia, serif">Elegant</option>
+                       <option value="'Impact', serif">Heavy (Impact)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-gray-400 mb-1 block">Text Format</label>
+                    <div className="flex gap-1">
+                       <button onClick={() => setFontWeight(fontWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1.5 rounded border text-xs font-bold ${fontWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>B</button>
+                       <button onClick={() => setFontStyle(fontStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1.5 rounded border text-xs italic ${fontStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>I</button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">Text Color</label>
-                    <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)} className="w-full h-8 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                    <label className="text-[10px] text-gray-400 mb-1 block">Font Color</label>
+                    <div className="flex items-center gap-2 bg-[#0f172a] p-1 rounded border border-gray-600">
+                      <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)} className="w-6 h-6 rounded cursor-pointer bg-transparent border-none"/>
+                      <span className="text-[10px] text-gray-300">{textColor}</span>
+                    </div>
                   </div>
                   <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">Backdrop</label>
-                    <select value={bgColor} onChange={e => setBgColor(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-xs text-white outline-none">
-                       <option value="rgba(0, 0, 0, 0.6)">Dark Blur</option>
-                       <option value="rgba(255, 255, 255, 0.6)">Light Blur</option>
-                       <option value="#000000">Solid Black</option>
-                       <option value="transparent">Invisible</option>
+                    <label className="text-[10px] text-gray-400 mb-1 block">Font Border (Outline)</label>
+                    <select value={textOutline} onChange={e => setTextOutline(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-xs text-white outline-none">
+                       <option value="none">No Border</option>
+                       <option value="#000000">Black Border</option>
+                       <option value="#ffffff">White Border</option>
+                       <option value="#ef4444">Red Border</option>
                     </select>
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[10px] text-gray-400 mb-1 block">Border</label>
-                  <select value={borderStyle} onChange={e => setBorderStyle(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none">
-                     <option value="none">No Border</option>
-                     <option value="2px solid white">Solid White</option>
-                     <option value="2px dashed #d946ef">Dashed Pink</option>
-                     <option value="2px solid gold">Premium Gold</option>
-                  </select>
+                <div className="grid grid-cols-2 gap-2 border-t border-gray-700 pt-3">
+                   <div>
+                      <label className="text-[10px] text-gray-400 mb-1 block">Box Background</label>
+                      <select value={bgColor} onChange={e => setBgColor(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none">
+                         <option value="rgba(0, 0, 0, 0.4)">Dark Glass</option>
+                         <option value="rgba(255, 255, 255, 0.4)">Light Glass</option>
+                         <option value="transparent">Transparent</option>
+                         <option value="#000000">Solid Black</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-gray-400 mb-1 block">Box Border</label>
+                      <select value={boxBorder} onChange={e => setBoxBorder(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none">
+                         <option value="none">No Border</option>
+                         <option value="2px solid white">Solid White</option>
+                         <option value="2px dashed #d946ef">Dashed Pink</option>
+                         <option value="2px solid gold">Solid Gold</option>
+                      </select>
+                    </div>
                 </div>
+
              </div>
            </div>
-
         </div>
 
         {/* CENTER: THE PRO CANVAS */}
         <div className="flex-1 bg-[#0f172a] rounded-xl border border-gray-700 shadow-inner flex flex-col relative overflow-hidden">
            <div className="absolute top-3 left-3 z-10 bg-black/80 px-4 py-1.5 rounded-full text-xs text-white border border-gray-700 flex items-center gap-2">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span> Live Editor Canvas
+              <span className="w-2 h-2 bg-fuchsia-500 rounded-full animate-pulse"></span> Canvas Area
            </div>
 
            <div className="flex-1 flex items-center justify-center p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5" onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
@@ -255,23 +338,36 @@ const PersonalizedSender = () => {
                <div ref={imageContainerRef} className="relative max-w-full max-h-full shadow-2xl border-4 border-gray-800 rounded-lg select-none">
                  <img src={mediaPreview} alt="Base" className="max-w-full max-h-[70vh] object-contain pointer-events-none" />
 
-                 {/* THE STICKER ELEMENT */}
+                 {/* PRO STICKER ELEMENT */}
                  <div 
                    onMouseDown={handleDragStart} onTouchStart={handleDragStart}
                    style={{ 
                      top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, 
                      transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab',
-                     color: textColor, background: bgColor, border: borderStyle, fontFamily: fontFamily,
+                     background: bgColor, border: boxBorder, 
                      backdropFilter: bgColor.includes('rgba') ? 'blur(6px)' : 'none',
-                     textShadow: textColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none'
                    }}
                    className="absolute flex flex-col items-center justify-center transition-shadow z-20 rounded-xl group hover:ring-2 hover:ring-fuchsia-500"
                  >
-                   <div className="font-bold text-3xl tracking-wide text-center pt-3 pb-1 px-4 w-full truncate">
+                   <div 
+                     style={{ 
+                        color: textColor, fontFamily: fontFamily, fontWeight: fontWeight, fontStyle: fontStyle,
+                        WebkitTextStroke: textOutline !== 'none' ? `1px ${textOutline}` : 'none',
+                        textShadow: textOutline === 'none' && textColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none'
+                     }}
+                     className="text-3xl tracking-wide text-center pt-3 pb-1 px-4 w-full truncate"
+                   >
                       {stickerText}
                    </div>
+                   
                    {subText && (
-                     <div className="text-sm font-medium text-center pb-3 pt-1 px-4 w-full break-words opacity-90">
+                     <div 
+                       style={{ 
+                          color: textColor, fontFamily: fontFamily, fontStyle: fontStyle,
+                          WebkitTextStroke: textOutline !== 'none' ? `0.5px ${textOutline}` : 'none',
+                       }}
+                       className="text-sm font-medium text-center pb-3 pt-1 px-4 w-full break-words opacity-90"
+                     >
                         {subText}
                      </div>
                    )}
@@ -301,18 +397,24 @@ const PersonalizedSender = () => {
           {/* Progress Mini */}
           {campaignState !== 'idle' && (
              <div className="p-3 bg-[#0f172a] border-b border-gray-700">
-               <div className="w-full bg-gray-700 rounded-full h-1.5 mb-2"><div className="bg-fuchsia-500 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div></div>
-               <p className="text-[10px] text-gray-400 text-center">Sent: {stats.sent} | Failed: {stats.failed}</p>
+               <div className="w-full bg-gray-700 rounded-full h-1.5 mb-2"><div className="bg-fuchsia-500 h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }}></div></div>
+               <p className="text-[10px] text-gray-400 text-center flex justify-between">
+                 <span className="text-green-400">Sent: {stats.sent}</span>
+                 <span className="text-red-400">Failed: {stats.failed}</span>
+               </p>
              </div>
           )}
 
           <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
             {logs.length === 0 ? (
-               <p className="text-xs text-gray-500 text-center mt-10">Waiting to start...</p>
+               <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-50">
+                  <span className="text-3xl mb-2">⏳</span>
+                  <span className="text-xs">Logs appear here</span>
+               </div>
             ) : logs.map(log => (
-               <div key={log.id} className="bg-[#0f172a] p-2 rounded-lg border border-gray-700/50 text-xs">
+               <div key={log.id} className="bg-[#0f172a] p-2 rounded-lg border border-gray-700/50 text-xs animate-fade-in">
                   <div className="flex justify-between font-bold mb-1">
-                     <span className="text-gray-300 truncate w-24">{log.to}</span>
+                     <span className="text-gray-300 truncate w-24" title={log.to}>{log.to}</span>
                      <span className={log.status.includes('Sent') ? 'text-green-400' : 'text-red-400'}>{log.status}</span>
                   </div>
                </div>
