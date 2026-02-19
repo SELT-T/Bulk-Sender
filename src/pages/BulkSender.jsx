@@ -36,7 +36,7 @@ const BulkSender = () => {
     }
   };
 
-  // 2. 🚀 SMART EXCEL SCANNER (New Fix)
+  // 2. 🚀 ULTRA-SMART EXCEL SCANNER (Hindi + Value Guessing)
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
     if (!uploadedFile) return;
@@ -48,40 +48,54 @@ const BulkSender = () => {
         const bstr = evt.target.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws);
+        const data = XLSX.utils.sheet_to_json(ws, { defval: "" }); // Read all cells, even empty ones
         
         if (data.length === 0) {
            return alert("❌ Your Excel file is empty!");
         }
 
-        // Smart Extraction: Matches any column containing 'mob', 'phone', 'num', 'contact'
-        const formattedContacts = data.map(row => {
+        const formattedContacts = data.map((row) => {
           let phoneVal = '';
           let nameVal = 'Guest';
 
-          Object.keys(row).forEach(key => {
+          const keys = Object.keys(row);
+
+          // PASS 1: Check by Headers (English & Hindi)
+          keys.forEach(key => {
             const lowerKey = key.toLowerCase();
-            // Phone checker
-            if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp')) {
-              if (!phoneVal) phoneVal = String(row[key]).trim();
+            if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp') || lowerKey.includes('मोबा') || lowerKey.includes('फोन') || lowerKey.includes('नंबर') || lowerKey.includes('सम्पर्क')) {
+              if (!phoneVal && row[key]) phoneVal = String(row[key]).trim();
             }
-            // Name checker
-            if (lowerKey.includes('name') || lowerKey.includes('customer') || lowerKey.includes('client')) {
-              if (nameVal === 'Guest') nameVal = String(row[key]).trim();
+            if (lowerKey.includes('name') || lowerKey.includes('customer') || lowerKey.includes('नाम') || lowerKey.includes('सदस्य') || lowerKey.includes('पार्षद') || lowerKey.includes('व्यक्ति')) {
+              if (nameVal === 'Guest' && row[key]) nameVal = String(row[key]).trim();
             }
           });
 
+          // PASS 2: Value Guessing (If Header failed, check the actual values)
+          if (!phoneVal) {
+             keys.forEach(key => {
+                const val = String(row[key]).trim();
+                // Check if it looks like a phone number (9 to 14 digits)
+                const numbersOnly = val.replace(/\D/g, '');
+                if (numbersOnly.length >= 9 && numbersOnly.length <= 14 && !phoneVal) {
+                   phoneVal = val;
+                } else if (nameVal === 'Guest' && val.length > 2 && isNaN(val)) {
+                   nameVal = val;
+                }
+             });
+          }
+
           return { phone: phoneVal, name: nameVal };
-        }).filter(c => c.phone); // Sirf wahi rakho jisme phone number mila ho
+        }).filter(c => c.phone && c.phone.length > 5); // Sirf valid length wale number rakho
 
         if (formattedContacts.length === 0) {
-           alert("❌ Could not find Phone/Mobile numbers! Please ensure your Excel has a column named 'Mobile' or 'Phone'.");
+           alert("❌ Could not extract any numbers! Please check if the file contains valid phone numbers.");
         } else {
            setContacts(formattedContacts);
-           setShowContactPreview(true); // Automatically show list
+           setShowContactPreview(true); // Auto-show preview
         }
       } catch (error) {
-         alert("❌ Error reading the Excel file. Is it corrupted?");
+         alert("❌ Error reading the Excel file. Please save it as standard .xlsx and try again.");
       }
     };
     reader.readAsBinaryString(uploadedFile);
@@ -196,7 +210,7 @@ const BulkSender = () => {
               <p className="text-xs text-gray-300">{file ? file.name : "Upload Excel File"}</p>
             </div>
 
-            {/* LIVE CONTACT PREVIEW - Will show up immediately now */}
+            {/* LIVE CONTACT PREVIEW */}
             {contacts.length > 0 && (
               <div className="mt-4 animate-fade-in-up">
                 <div className="flex justify-between items-center mb-2 bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
