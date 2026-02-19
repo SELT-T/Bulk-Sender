@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 const BulkSender = () => {
   // --- States ---
   const [contacts, setContacts] = useState([]);
-  const [showContactPreview, setShowContactPreview] = useState(false); // New: Preview toggle
+  const [showContactPreview, setShowContactPreview] = useState(false);
   
   const [message, setMessage] = useState("Hello {{Name}}, here is your invite!");
   const [file, setFile] = useState(null); 
@@ -14,8 +14,8 @@ const BulkSender = () => {
   // --- Advanced Sticker States ---
   const [showSticker, setShowSticker] = useState(false);
   const [stickerText, setStickerText] = useState("{{Name}}");
-  const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं"); // New: Second Line
-  const [stickerColor, setStickerColor] = useState("#ffffff"); // New: Text Color
+  const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
+  const [stickerColor, setStickerColor] = useState("#ffffff");
   const [stickerPos, setStickerPos] = useState({ x: 50, y: 50 }); 
   const [isDragging, setIsDragging] = useState(false);
   
@@ -32,11 +32,11 @@ const BulkSender = () => {
     if (uploadedFile) {
       setMedia(uploadedFile);
       setMediaPreview(URL.createObjectURL(uploadedFile));
-      setShowSticker(true); // Auto-enable sticker on image upload
+      setShowSticker(true);
     }
   };
 
-  // 2. Handle Excel Upload
+  // 2. 🚀 SMART EXCEL SCANNER (New Fix)
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
     if (!uploadedFile) return;
@@ -44,24 +44,51 @@ const BulkSender = () => {
 
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const bstr = evt.target.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const data = XLSX.utils.sheet_to_json(ws);
-      
-      const formattedContacts = data.map(row => ({
-        phone: row.Phone || row.Mobile || row.Number || row.contact,
-        name: row.Name || row.Customer || 'Guest'
-      })).filter(c => c.phone);
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws);
+        
+        if (data.length === 0) {
+           return alert("❌ Your Excel file is empty!");
+        }
 
-      setContacts(formattedContacts);
-      setShowContactPreview(true); // Auto-show preview
+        // Smart Extraction: Matches any column containing 'mob', 'phone', 'num', 'contact'
+        const formattedContacts = data.map(row => {
+          let phoneVal = '';
+          let nameVal = 'Guest';
+
+          Object.keys(row).forEach(key => {
+            const lowerKey = key.toLowerCase();
+            // Phone checker
+            if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp')) {
+              if (!phoneVal) phoneVal = String(row[key]).trim();
+            }
+            // Name checker
+            if (lowerKey.includes('name') || lowerKey.includes('customer') || lowerKey.includes('client')) {
+              if (nameVal === 'Guest') nameVal = String(row[key]).trim();
+            }
+          });
+
+          return { phone: phoneVal, name: nameVal };
+        }).filter(c => c.phone); // Sirf wahi rakho jisme phone number mila ho
+
+        if (formattedContacts.length === 0) {
+           alert("❌ Could not find Phone/Mobile numbers! Please ensure your Excel has a column named 'Mobile' or 'Phone'.");
+        } else {
+           setContacts(formattedContacts);
+           setShowContactPreview(true); // Automatically show list
+        }
+      } catch (error) {
+         alert("❌ Error reading the Excel file. Is it corrupted?");
+      }
     };
     reader.readAsBinaryString(uploadedFile);
   };
 
   // 3. DRAG & DROP LOGIC
-  const handleMouseDown = (e) => setIsDragging(true);
+  const handleMouseDown = () => setIsDragging(true);
   const handleMouseUp = () => setIsDragging(false);
 
   const handleMouseMove = (e) => {
@@ -81,7 +108,7 @@ const BulkSender = () => {
 
   // 4. SENDING LOGIC
   const startCampaign = async () => {
-    if (contacts.length === 0) return alert("❌ Please upload an Excel file first!");
+    if (contacts.length === 0) return alert("❌ Please upload a valid Excel file first!");
     setIsSending(true);
     setLogs([]);
 
@@ -104,7 +131,6 @@ const BulkSender = () => {
             phone: contact.phone,
             message: personalizedMsg,
             media_type: media?.type.split('/')[0] || 'text',
-            // Sticker Data sending to Backend
             sticker_config: showSticker ? {
               name_text: contact.name,
               sub_text: subText,
@@ -149,7 +175,7 @@ const BulkSender = () => {
            <button 
              onClick={startCampaign} 
              disabled={isSending || contacts.length === 0}
-             className={`px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all ${isSending ? 'bg-gray-600 cursor-not-allowed' : 'bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105'}`}
+             className={`px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all ${(isSending || contacts.length === 0) ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105'}`}
            >
              {isSending ? '🚀 Sending...' : 'Start Campaign ▶'}
            </button>
@@ -170,24 +196,24 @@ const BulkSender = () => {
               <p className="text-xs text-gray-300">{file ? file.name : "Upload Excel File"}</p>
             </div>
 
-            {/* LIVE CONTACT PREVIEW */}
+            {/* LIVE CONTACT PREVIEW - Will show up immediately now */}
             {contacts.length > 0 && (
-              <div className="mt-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
-                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-xs text-fuchsia-400 hover:text-white">
-                    {showContactPreview ? 'Hide List' : 'View List'}
+              <div className="mt-4 animate-fade-in-up">
+                <div className="flex justify-between items-center mb-2 bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
+                  <span className="text-xs font-bold text-green-400">✅ {contacts.length} Contacts Ready</span>
+                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-xs text-fuchsia-400 hover:text-white font-bold">
+                    {showContactPreview ? 'Hide List ▲' : 'View List ▼'}
                   </button>
                 </div>
                 {showContactPreview && (
-                  <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1">
+                  <div className="max-h-40 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-3 space-y-2 shadow-inner">
                     {contacts.slice(0, 50).map((c, idx) => (
-                      <div key={idx} className="flex justify-between text-[10px] border-b border-gray-800 pb-1">
-                        <span className="text-gray-300 truncate w-1/2">{c.name}</span>
-                        <span className="text-gray-500 font-mono">{c.phone}</span>
+                      <div key={idx} className="flex justify-between items-center text-[11px] border-b border-gray-800 pb-1">
+                        <span className="text-gray-300 font-bold truncate w-1/2">{c.name}</span>
+                        <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-2 py-0.5 rounded">{c.phone}</span>
                       </div>
                     ))}
-                    {contacts.length > 50 && <p className="text-[10px] text-center text-gray-500 mt-1">...and {contacts.length - 50} more</p>}
+                    {contacts.length > 50 && <p className="text-[10px] text-center text-gray-500 mt-2 italic">...and {contacts.length - 50} more numbers</p>}
                   </div>
                 )}
               </div>
@@ -208,13 +234,11 @@ const BulkSender = () => {
           <div className="bg-[#1e293b] p-5 rounded-2xl border border-gray-700 shadow-lg">
             <h3 className="text-white font-bold mb-3">3. Personalization</h3>
             
-            {/* Sticker Toggle */}
             <div className="flex items-center justify-between bg-[#0f172a] p-3 rounded-lg border border-gray-600 mb-3">
                <span className="text-sm text-white font-medium">✨ Enable Image Sticker</span>
                <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} className="w-5 h-5 accent-fuchsia-500" />
             </div>
 
-            {/* Sticker Advanced Options */}
             {showSticker && (
               <div className="space-y-3 mb-4 p-3 border border-fuchsia-500/30 bg-fuchsia-500/5 rounded-lg animate-fade-in">
                  <div>
@@ -268,7 +292,6 @@ const BulkSender = () => {
                  ref={imageContainerRef}
                  className="relative max-w-full max-h-full shadow-2xl border-2 border-dashed border-gray-600 rounded-lg overflow-hidden cursor-crosshair select-none"
                >
-                 {/* Background Image */}
                  {media?.type.startsWith('image') ? (
                     <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[65vh] object-contain pointer-events-none" />
                  ) : (
@@ -288,8 +311,8 @@ const BulkSender = () => {
                        left: `${stickerPos.x}%`,
                        transform: 'translate(-50%, -50%)',
                        cursor: isDragging ? 'grabbing' : 'grab',
-                       color: stickerColor, // Applied Dynamic Color
-                       textShadow: stickerColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : '1px 1px 4px rgba(255,255,255,0.5)' // Gives readability
+                       color: stickerColor,
+                       textShadow: stickerColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : '1px 1px 4px rgba(255,255,255,0.5)'
                      }}
                      className="absolute text-center hover:scale-105 transition-transform z-20"
                    >
@@ -302,7 +325,6 @@ const BulkSender = () => {
                        </div>
                      )}
                      
-                     {/* Drag Indicator */}
                      {isDragging && <div className="absolute -inset-2 border-2 border-dashed border-fuchsia-500 rounded-xl"></div>}
                    </div>
                  )}
@@ -315,7 +337,6 @@ const BulkSender = () => {
              )}
            </div>
 
-           {/* Coordinates Info */}
            {showSticker && (
              <div className="bg-[#1e293b] p-3 flex justify-between items-center text-xs text-gray-400 border-t border-gray-700">
                 <span>Drag text to position it exactly on the card.</span>
