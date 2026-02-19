@@ -5,12 +5,14 @@ const PersonalizedSender = () => {
   // --- States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
+  const [countryCode, setCountryCode] = useState('91'); // Naya feature state
+  
   const [mediaPreview, setMediaPreview] = useState(null);
   const [mediaFile, setMediaFile] = useState(null);
   const [waStatus, setWaStatus] = useState('checking'); 
   
   // --- STUDIO STATES ---
-  const [activeTab, setActiveTab] = useState('name'); // name, sub, box
+  const [activeTab, setActiveTab] = useState('name');
 
   // 1. Name Tag Config
   const [nameText, setNameText] = useState("{{Name}}");
@@ -25,7 +27,7 @@ const PersonalizedSender = () => {
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
   const [subFont, setSubFont] = useState("Arial, sans-serif");
   const [subSize, setSubSize] = useState(14);
-  const [subColor, setSubColor] = useState("#fbcfe8"); // Light pink
+  const [subColor, setSubColor] = useState("#fbcfe8"); 
   const [subOutline, setSubOutline] = useState("none");
   const [subWeight, setSubWeight] = useState("normal");
   const [subStyle, setSubStyle] = useState("normal");
@@ -135,7 +137,7 @@ const PersonalizedSender = () => {
              });
           }
           return { phone: phoneVal, name: nameVal };
-        }).filter(c => c.phone && c.phone.length > 5); 
+        }).filter(c => c.phone && c.phone.length >= 5); 
 
         if (formattedContacts.length > 0) {
            setContacts(formattedContacts);
@@ -145,6 +147,31 @@ const PersonalizedSender = () => {
       } catch (error) { alert("❌ Error reading Excel."); }
     };
     reader.readAsBinaryString(file);
+  };
+
+  // 🚀 NAYA FEATURE: BULK COUNTRY CODE ADDER
+  const applyCountryCode = () => {
+    if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
+    
+    const code = countryCode.replace('+', '').trim();
+    
+    const updatedContacts = contacts.map(c => {
+      let phone = String(c.phone).replace(/\D/g, ''); // Sirf number rakho, special characters hatao
+      
+      // Agar number sirf 10 digit ka hai (Jaise India me hota hai), toh aage code laga do
+      if (phone.length === 10) {
+        phone = code + phone;
+      } 
+      // Agar 11 digit ka hai aur 0 se shuru hota hai, toh 0 hata kar code lagao
+      else if (phone.length === 11 && phone.startsWith('0')) {
+        phone = code + phone.substring(1);
+      }
+      
+      return { ...c, phone: phone };
+    });
+
+    setContacts(updatedContacts);
+    alert(`✅ Success! Country Code (+${code}) added to all numbers.`);
   };
 
   // 3. Canvas Drag & Resize Engine
@@ -229,7 +256,7 @@ const PersonalizedSender = () => {
             {campaignState === 'running' ? (
                <button onClick={() => stopRef.current = true} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all">⏹ Stop Blast</button>
             ) : (
-               <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview || waStatus !== 'connected'} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50">
+               <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview || waStatus !== 'connected'} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                   🚀 Start Auto-Blast
                </button>
             )}
@@ -241,7 +268,7 @@ const PersonalizedSender = () => {
         {/* LEFT: ADVANCED TOOLS PANEL */}
         <div className="w-[340px] flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar pb-4">
            
-           {/* Step 1 & 2: Uploads (Compact) */}
+           {/* Step 1 & 2: Uploads */}
            <div className="grid grid-cols-2 gap-3 flex-shrink-0">
              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
                <h3 className="text-white font-bold text-[11px] mb-2">1. Base Image</h3>
@@ -260,6 +287,47 @@ const PersonalizedSender = () => {
                </div>
              </div>
            </div>
+
+           {/* 🚀 CONTACT LIST PREVIEW & COUNTRY CODE TOOL */}
+           {contacts.length > 0 && (
+              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 animate-fade-in-up">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-xs font-bold text-green-400">✅ {contacts.length} Contacts Loaded</span>
+                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">
+                    {showContactPreview ? 'Hide List ▲' : 'View List ▼'}
+                  </button>
+                </div>
+                
+                {showContactPreview && (
+                  <div className="animate-fade-in">
+                    {/* Country Code Fixer */}
+                    <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
+                      <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">Add Code: +</span>
+                      <input 
+                        type="text" 
+                        value={countryCode} 
+                        onChange={e => setCountryCode(e.target.value)} 
+                        className="w-8 bg-transparent text-white text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" 
+                        placeholder="91"
+                      />
+                      <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[10px] rounded font-bold py-1.5 transition-all">
+                        Apply to All
+                      </button>
+                    </div>
+
+                    {/* Scrollable List */}
+                    <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner custom-scrollbar">
+                      {contacts.map((c, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-[10px] border-b border-gray-800 pb-1">
+                          <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
+                          <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+           )}
 
            {/* Step 3: THE ULTIMATE STYLING ENGINE */}
            {mediaPreview && (
