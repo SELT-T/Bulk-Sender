@@ -7,27 +7,38 @@ const PersonalizedSender = () => {
   const [showContactPreview, setShowContactPreview] = useState(false);
   const [mediaPreview, setMediaPreview] = useState(null);
   const [mediaFile, setMediaFile] = useState(null);
-  const [waStatus, setWaStatus] = useState('checking'); // Real API Status
+  const [waStatus, setWaStatus] = useState('checking'); 
   
-  // --- Pro Studio Typography States ---
-  const [stickerText, setStickerText] = useState("{{Name}}");
+  // --- STUDIO STATES ---
+  const [activeTab, setActiveTab] = useState('name'); // name, sub, box
+
+  // 1. Name Tag Config
+  const [nameText, setNameText] = useState("{{Name}}");
+  const [nameFont, setNameFont] = useState("Arial, sans-serif");
+  const [nameSize, setNameSize] = useState(32);
+  const [nameColor, setNameColor] = useState("#ffffff");
+  const [nameOutline, setNameOutline] = useState("none");
+  const [nameWeight, setNameWeight] = useState("bold");
+  const [nameStyle, setNameStyle] = useState("normal");
+
+  // 2. Sub-Text Config
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
+  const [subFont, setSubFont] = useState("Arial, sans-serif");
+  const [subSize, setSubSize] = useState(14);
+  const [subColor, setSubColor] = useState("#fbcfe8"); // Light pink
+  const [subOutline, setSubOutline] = useState("none");
+  const [subWeight, setSubWeight] = useState("normal");
+  const [subStyle, setSubStyle] = useState("normal");
+
+  // 3. Box Config
+  const [boxBg, setBoxBg] = useState("rgba(0, 0, 0, 0.5)");
+  const [boxBorder, setBoxBorder] = useState("none");
+  const [boxRadius, setBoxRadius] = useState(12);
+  const [boxPadding, setBoxPadding] = useState(16);
   
-  // Font Styling
-  const [fontFamily, setFontFamily] = useState("Arial, sans-serif");
-  const [fontWeight, setFontWeight] = useState("bold");
-  const [fontStyle, setFontStyle] = useState("normal");
-  
-  // Colors & Borders
-  const [textColor, setTextColor] = useState("#ffffff");
-  const [textOutline, setTextOutline] = useState("none"); // Font Border
-  const [bgColor, setBgColor] = useState("rgba(0, 0, 0, 0.4)");
-  const [boxBorder, setBoxBorder] = useState("none"); 
-  
-  // Dimensions
-  const [stickerWidth, setStickerWidth] = useState(300);
+  // Placement
+  const [stickerWidth, setStickerWidth] = useState(320);
   const [stickerPos, setStickerPos] = useState({ x: 50, y: 70 }); 
-  
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   
@@ -42,6 +53,27 @@ const PersonalizedSender = () => {
   const stopRef = useRef(false);
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
+
+  // FONT OPTIONS
+  const fontOptions = [
+    { label: "Modern (Arial)", value: "Arial, sans-serif" },
+    { label: "Classic (Times)", value: "'Times New Roman', serif" },
+    { label: "Typewriter", value: "'Courier New', monospace" },
+    { label: "Elegant (Georgia)", value: "Georgia, serif" },
+    { label: "Heavy (Impact)", value: "'Impact', sans-serif" },
+    { label: "Clean (Verdana)", value: "Verdana, sans-serif" },
+    { label: "Round (Comic Sans)", value: "'Comic Sans MS', cursive" },
+    { label: "Stylish Script", value: "'Brush Script MT', cursive" }
+  ];
+
+  const outlineOptions = [
+    { label: "No Outline", value: "none" },
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Red", value: "#ef4444" },
+    { label: "Blue", value: "#3b82f6" },
+    { label: "Gold", value: "#fbbf24" }
+  ];
 
   // 0. REAL API CHECK
   useEffect(() => {
@@ -69,7 +101,7 @@ const PersonalizedSender = () => {
     }
   };
 
-  // 2. Smart Excel Scanner with Preview
+  // 2. Smart Excel Scanner
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -108,7 +140,7 @@ const PersonalizedSender = () => {
         if (formattedContacts.length > 0) {
            setContacts(formattedContacts);
            setStats({ sent: 0, failed: 0, total: formattedContacts.length });
-           setShowContactPreview(true); // Automatically open preview
+           setShowContactPreview(true);
         } else alert("❌ No valid numbers found in Excel.");
       } catch (error) { alert("❌ Error reading Excel."); }
     };
@@ -133,15 +165,15 @@ const PersonalizedSender = () => {
     } else if (isResizing) {
       const stickerCenterX = (stickerPos.x / 100) * rect.width + rect.left;
       const newWidth = Math.abs(clientX - stickerCenterX) * 2;
-      setStickerWidth(Math.max(120, Math.min(newWidth, rect.width * 0.9))); 
+      setStickerWidth(Math.max(120, Math.min(newWidth, rect.width * 0.95))); 
     }
   };
 
-  // 4. REAL API Campaign Trigger
+  // 4. API Trigger
   const startBlast = async () => {
-    if (waStatus !== 'connected') return alert("❌ ERROR: WhatsApp is Disconnected! Please configure your API Provider in 'Advanced Settings' before starting.");
-    if (!mediaFile) return alert("❌ Please upload a Base Image to personalize!");
-    if (contacts.length === 0) return alert("❌ Please upload Contacts List!");
+    if (waStatus !== 'connected') return alert("❌ WhatsApp is Disconnected! Please configure API first.");
+    if (!mediaFile) return alert("❌ Please upload a Base Image!");
+    if (contacts.length === 0) return alert("❌ Please upload Contacts!");
     
     setCampaignState('running'); stopRef.current = false; setLogs([]); setProgress(0);
     let currentSent = 0, currentFailed = 0;
@@ -152,18 +184,17 @@ const PersonalizedSender = () => {
       setLogs(prev => [{ id: i + 1, to: contact.name, status: "Sending..." }, ...prev]);
 
       try {
-        const res = await fetch(`${API_URL}/send-message`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: user.email, phone: contact.phone, message: "Here is your personalized invite!", media_type: 'image',
-            sticker_config: { 
-               name_text: contact.name, sub_text: subText, color: textColor, bg_color: bgColor, 
-               font: fontFamily, weight: fontWeight, style: fontStyle, text_outline: textOutline,
-               width: stickerWidth, border: boxBorder, x: stickerPos.x, y: stickerPos.y 
-            }
-          })
-        });
+        const payload = {
+          email: user.email, phone: contact.phone, message: "Here is your personalized invite!", media_type: 'image',
+          sticker_config: { 
+             name: { text: contact.name, font: nameFont, size: nameSize, color: nameColor, outline: nameOutline, weight: nameWeight, style: nameStyle },
+             sub: { text: subText, font: subFont, size: subSize, color: subColor, outline: subOutline, weight: subWeight, style: subStyle },
+             box: { bg: boxBg, border: boxBorder, radius: boxRadius, padding: boxPadding, width: stickerWidth },
+             x: stickerPos.x, y: stickerPos.y 
+          }
+        };
 
+        const res = await fetch(`${API_URL}/send-message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (res.ok) { currentSent++; setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l)); }
         else { currentFailed++; setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "❌ Failed" } : l)); }
       } catch (err) {
@@ -180,16 +211,15 @@ const PersonalizedSender = () => {
   return (
     <div className="flex flex-col h-[calc(100vh-80px)] max-w-[1400px] mx-auto p-2 animate-fade-in" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
       
-      {/* STUDIO HEADER */}
+      {/* HEADER */}
       <div className="flex justify-between items-center bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-xl mb-4">
          <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
-               ✨ Pro Graphic Studio
-               {waStatus === 'checking' && <span className="text-xs text-gray-400">Checking API...</span>}
-               {waStatus === 'connected' && <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[10px] text-green-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> API Linked</span>}
-               {waStatus === 'disconnected' && <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[10px] text-red-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> API Disconnected</span>}
+               🎨 Pro Graphic Studio
+               {waStatus === 'checking' && <span className="text-xs text-gray-400">Checking...</span>}
+               {waStatus === 'connected' && <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[10px] text-green-400">API Linked</span>}
+               {waStatus === 'disconnected' && <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[10px] text-red-400">API Disconnected</span>}
             </h2>
-            <p className="text-gray-400 text-xs mt-1">Design once, generate hundreds of personalized images automatically.</p>
          </div>
          <div className="flex items-center gap-4">
             <div className="bg-[#0f172a] px-3 py-1.5 rounded-lg border border-gray-600 flex items-center gap-2">
@@ -199,7 +229,7 @@ const PersonalizedSender = () => {
             {campaignState === 'running' ? (
                <button onClick={() => stopRef.current = true} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all">⏹ Stop Blast</button>
             ) : (
-               <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview || waStatus !== 'connected'} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+               <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview || waStatus !== 'connected'} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50">
                   🚀 Start Auto-Blast
                </button>
             )}
@@ -209,128 +239,170 @@ const PersonalizedSender = () => {
       <div className="flex-1 flex gap-4 overflow-hidden">
         
         {/* LEFT: ADVANCED TOOLS PANEL */}
-        <div className="w-[320px] flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar pb-4">
+        <div className="w-[340px] flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar pb-4">
            
-           {/* Step 1: Base Image */}
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-shrink-0">
-             <h3 className="text-white font-bold text-sm mb-2">1. Base Image</h3>
-             <div className="relative group cursor-pointer border-2 border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
-               <input type="file" accept="image/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-               <p className="text-2xl mb-1">🖼️</p>
-               <p className="text-[10px] text-gray-400 truncate px-2">{mediaFile ? mediaFile.name : "Upload Blank Card/Invite"}</p>
+           {/* Step 1 & 2: Uploads (Compact) */}
+           <div className="grid grid-cols-2 gap-3 flex-shrink-0">
+             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
+               <h3 className="text-white font-bold text-[11px] mb-2">1. Base Image</h3>
+               <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500">
+                 <input type="file" accept="image/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0" />
+                 <p className="text-lg">🖼️</p>
+                 <p className="text-[9px] text-gray-400 truncate">{mediaFile ? mediaFile.name : "Upload Image"}</p>
+               </div>
+             </div>
+             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
+               <h3 className="text-white font-bold text-[11px] mb-2">2. Excel List</h3>
+               <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500">
+                 <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0" />
+                 <p className="text-lg">📊</p>
+                 <p className="text-[9px] text-gray-400">{contacts.length > 0 ? `${contacts.length} Ready` : "Upload List"}</p>
+               </div>
              </div>
            </div>
 
-           {/* Step 2: Excel Data & Preview */}
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-shrink-0">
-             <h3 className="text-white font-bold text-sm mb-2">2. Audience List</h3>
-             <div className="relative group cursor-pointer border-2 border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
-               <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-               <p className="text-xl mb-1">📊</p>
-               <p className="text-[10px] text-gray-400">{contacts.length > 0 ? `Update Excel File` : "Upload Excel File"}</p>
-             </div>
-             
-             {/* CONTACT PREVIEW LIST FIX */}
-             {contacts.length > 0 && (
-                <div className="mt-3 animate-fade-in-up">
-                  <div className="flex justify-between items-center bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
-                    <span className="text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
-                    <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded">
-                      {showContactPreview ? 'Hide ▲' : 'View ▼'}
-                    </button>
-                  </div>
-                  {showContactPreview && (
-                    <div className="max-h-32 mt-2 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner custom-scrollbar">
-                      {contacts.map((c, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-[10px] border-b border-gray-800 pb-1">
-                          <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
-                          <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
+           {/* Step 3: THE ULTIMATE STYLING ENGINE */}
+           {mediaPreview && (
+             <div className="bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex-1 flex flex-col overflow-hidden">
+               
+               {/* TABS */}
+               <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
+                  <button onClick={()=>setActiveTab('name')} className={`flex-1 py-2 text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name Tag</button>
+                  <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-2 text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
+                  <button onClick={()=>setActiveTab('box')} className={`flex-1 py-2 text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box Design</button>
+               </div>
+
+               {/* TAB CONTENTS */}
+               <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                  
+                  {/* --- NAME TAB --- */}
+                  {activeTab === 'name' && (
+                     <div className="space-y-4 animate-fade-in">
+                        <div>
+                          <label className="text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
+                          <input type="range" min="12" max="72" value={nameSize} onChange={e=>setNameSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
                         </div>
-                      ))}
-                    </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                           <div>
+                             <label className="text-[10px] text-gray-400 block mb-1">Font Family</label>
+                             <select value={nameFont} onChange={e=>setNameFont(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                                {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                             </select>
+                           </div>
+                           <div>
+                             <label className="text-[10px] text-gray-400 block mb-1">Format</label>
+                             <div className="flex gap-1">
+                                <button onClick={() => setNameWeight(nameWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-xs font-bold ${nameWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>B</button>
+                                <button onClick={() => setNameStyle(nameStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-xs italic ${nameStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>I</button>
+                             </div>
+                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-gray-400 block mb-1">Text Color</label>
+                            <input type="color" value={nameColor} onChange={e=>setNameColor(e.target.value)} className="w-full h-8 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-gray-400 block mb-1">Border (Outline)</label>
+                            <select value={nameOutline} onChange={e=>setNameOutline(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                               {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                     </div>
                   )}
-                </div>
-             )}
-           </div>
 
-           {/* Step 3: Advanced Typography Controls */}
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-1">
-             <h3 className="text-white font-bold text-sm mb-3">3. Pro Text Settings</h3>
-             
-             <div className="space-y-4">
-                <div>
-                  <label className="text-[10px] text-gray-400 mb-1 block">Sub-Text (Line 2)</label>
-                  <input type="text" value={subText} onChange={e => setSubText(e.target.value)} placeholder="e.g. सपरिवार आमंत्रित हैं" className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none focus:border-fuchsia-500"/>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">Font Style</label>
-                    <select value={fontFamily} onChange={e => setFontFamily(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-xs text-white outline-none">
-                       <option value="Arial, sans-serif">Modern (Arial)</option>
-                       <option value="'Times New Roman', serif">Classic (Times)</option>
-                       <option value="'Courier New', monospace">Typewriter</option>
-                       <option value="Georgia, serif">Elegant</option>
-                       <option value="'Impact', serif">Heavy (Impact)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">Text Format</label>
-                    <div className="flex gap-1">
-                       <button onClick={() => setFontWeight(fontWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1.5 rounded border text-xs font-bold ${fontWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>B</button>
-                       <button onClick={() => setFontStyle(fontStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1.5 rounded border text-xs italic ${fontStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>I</button>
-                    </div>
-                  </div>
-                </div>
+                  {/* --- SUB-TEXT TAB --- */}
+                  {activeTab === 'sub' && (
+                     <div className="space-y-4 animate-fade-in">
+                        <div>
+                          <label className="text-[10px] text-gray-400 block mb-1">Sub-Text Content</label>
+                          <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none focus:border-fuchsia-500"/>
+                        </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">Font Color</label>
-                    <div className="flex items-center gap-2 bg-[#0f172a] p-1 rounded border border-gray-600">
-                      <input type="color" value={textColor} onChange={e => setTextColor(e.target.value)} className="w-6 h-6 rounded cursor-pointer bg-transparent border-none"/>
-                      <span className="text-[10px] text-gray-300">{textColor}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-gray-400 mb-1 block">Font Border (Outline)</label>
-                    <select value={textOutline} onChange={e => setTextOutline(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-xs text-white outline-none">
-                       <option value="none">No Border</option>
-                       <option value="#000000">Black Border</option>
-                       <option value="#ffffff">White Border</option>
-                       <option value="#ef4444">Red Border</option>
-                    </select>
-                  </div>
-                </div>
+                        <div>
+                          <label className="text-[10px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
+                          <input type="range" min="10" max="48" value={subSize} onChange={e=>setSubSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                           <div>
+                             <label className="text-[10px] text-gray-400 block mb-1">Font Family</label>
+                             <select value={subFont} onChange={e=>setSubFont(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                                {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                             </select>
+                           </div>
+                           <div>
+                             <label className="text-[10px] text-gray-400 block mb-1">Format</label>
+                             <div className="flex gap-1">
+                                <button onClick={() => setSubWeight(subWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-xs font-bold ${subWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>B</button>
+                                <button onClick={() => setSubStyle(subStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-xs italic ${subStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>I</button>
+                             </div>
+                           </div>
+                        </div>
 
-                <div className="grid grid-cols-2 gap-2 border-t border-gray-700 pt-3">
-                   <div>
-                      <label className="text-[10px] text-gray-400 mb-1 block">Box Background</label>
-                      <select value={bgColor} onChange={e => setBgColor(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none">
-                         <option value="rgba(0, 0, 0, 0.4)">Dark Glass</option>
-                         <option value="rgba(255, 255, 255, 0.4)">Light Glass</option>
-                         <option value="transparent">Transparent</option>
-                         <option value="#000000">Solid Black</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-gray-400 mb-1 block">Box Border</label>
-                      <select value={boxBorder} onChange={e => setBoxBorder(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none">
-                         <option value="none">No Border</option>
-                         <option value="2px solid white">Solid White</option>
-                         <option value="2px dashed #d946ef">Dashed Pink</option>
-                         <option value="2px solid gold">Solid Gold</option>
-                      </select>
-                    </div>
-                </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-gray-400 block mb-1">Text Color</label>
+                            <input type="color" value={subColor} onChange={e=>setSubColor(e.target.value)} className="w-full h-8 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-gray-400 block mb-1">Border (Outline)</label>
+                            <select value={subOutline} onChange={e=>setSubOutline(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                               {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                     </div>
+                  )}
 
+                  {/* --- BOX TAB --- */}
+                  {activeTab === 'box' && (
+                     <div className="space-y-4 animate-fade-in">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-gray-400 block mb-1">Box Background</label>
+                            <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                               <option value="rgba(0, 0, 0, 0.5)">Dark Glass</option>
+                               <option value="rgba(255, 255, 255, 0.5)">Light Glass</option>
+                               <option value="transparent">Transparent</option>
+                               <option value="#000000">Solid Black</option>
+                               <option value="#ffffff">Solid White</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-gray-400 block mb-1">Box Border</label>
+                            <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                               <option value="none">No Border</option>
+                               <option value="2px solid white">Solid White</option>
+                               <option value="2px solid black">Solid Black</option>
+                               <option value="2px dashed #d946ef">Dashed Pink</option>
+                               <option value="2px solid #fbbf24">Solid Gold</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-gray-400 flex justify-between">Corner Sharpness (Radius) <span>{boxRadius}px</span></label>
+                          <input type="range" min="0" max="50" value={boxRadius} onChange={e=>setBoxRadius(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-400 flex justify-between">Inside Spacing (Padding) <span>{boxPadding}px</span></label>
+                          <input type="range" min="0" max="40" value={boxPadding} onChange={e=>setBoxPadding(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                        </div>
+                     </div>
+                  )}
+               </div>
              </div>
-           </div>
+           )}
         </div>
 
         {/* CENTER: THE PRO CANVAS */}
         <div className="flex-1 bg-[#0f172a] rounded-xl border border-gray-700 shadow-inner flex flex-col relative overflow-hidden">
            <div className="absolute top-3 left-3 z-10 bg-black/80 px-4 py-1.5 rounded-full text-xs text-white border border-gray-700 flex items-center gap-2">
-              <span className="w-2 h-2 bg-fuchsia-500 rounded-full animate-pulse"></span> Canvas Area
+              <span className="w-2 h-2 bg-fuchsia-500 rounded-full animate-pulse"></span> Visual Editor
            </div>
 
            <div className="flex-1 flex items-center justify-center p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5" onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
@@ -338,35 +410,39 @@ const PersonalizedSender = () => {
                <div ref={imageContainerRef} className="relative max-w-full max-h-full shadow-2xl border-4 border-gray-800 rounded-lg select-none">
                  <img src={mediaPreview} alt="Base" className="max-w-full max-h-[70vh] object-contain pointer-events-none" />
 
-                 {/* PRO STICKER ELEMENT */}
+                 {/* ADVANCED STICKER ELEMENT */}
                  <div 
                    onMouseDown={handleDragStart} onTouchStart={handleDragStart}
                    style={{ 
                      top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, 
                      transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab',
-                     background: bgColor, border: boxBorder, 
-                     backdropFilter: bgColor.includes('rgba') ? 'blur(6px)' : 'none',
+                     background: boxBg, border: boxBorder, borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
+                     backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
                    }}
-                   className="absolute flex flex-col items-center justify-center transition-shadow z-20 rounded-xl group hover:ring-2 hover:ring-fuchsia-500"
+                   className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
                  >
+                   {/* DYNAMIC LINE 1: NAME */}
                    <div 
                      style={{ 
-                        color: textColor, fontFamily: fontFamily, fontWeight: fontWeight, fontStyle: fontStyle,
-                        WebkitTextStroke: textOutline !== 'none' ? `1px ${textOutline}` : 'none',
-                        textShadow: textOutline === 'none' && textColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none'
+                        color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
+                        WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
+                        textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
+                        lineHeight: '1.2'
                      }}
-                     className="text-3xl tracking-wide text-center pt-3 pb-1 px-4 w-full truncate"
+                     className="text-center w-full break-words"
                    >
-                      {stickerText}
+                      {nameText}
                    </div>
                    
+                   {/* DYNAMIC LINE 2: SUB-TEXT */}
                    {subText && (
                      <div 
                        style={{ 
-                          color: textColor, fontFamily: fontFamily, fontStyle: fontStyle,
-                          WebkitTextStroke: textOutline !== 'none' ? `0.5px ${textOutline}` : 'none',
+                          color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
+                          WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
+                          marginTop: '4px', lineHeight: '1.2'
                        }}
-                       className="text-sm font-medium text-center pb-3 pt-1 px-4 w-full break-words opacity-90"
+                       className="text-center w-full break-words opacity-90"
                      >
                         {subText}
                      </div>
@@ -389,12 +465,11 @@ const PersonalizedSender = () => {
         </div>
 
         {/* RIGHT: LIVE LOGS */}
-        <div className="w-64 bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex flex-col overflow-hidden">
+        <div className="w-[280px] bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex flex-col overflow-hidden">
           <div className="p-3 border-b border-gray-700 bg-[#0f172a] font-bold text-white text-sm">
             📡 Delivery Logs
           </div>
 
-          {/* Progress Mini */}
           {campaignState !== 'idle' && (
              <div className="p-3 bg-[#0f172a] border-b border-gray-700">
                <div className="w-full bg-gray-700 rounded-full h-1.5 mb-2"><div className="bg-fuchsia-500 h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }}></div></div>
@@ -414,7 +489,7 @@ const PersonalizedSender = () => {
             ) : logs.map(log => (
                <div key={log.id} className="bg-[#0f172a] p-2 rounded-lg border border-gray-700/50 text-xs animate-fade-in">
                   <div className="flex justify-between font-bold mb-1">
-                     <span className="text-gray-300 truncate w-24" title={log.to}>{log.to}</span>
+                     <span className="text-gray-300 truncate w-[140px]" title={log.to}>{log.to}</span>
                      <span className={log.status.includes('Sent') ? 'text-green-400' : 'text-red-400'}>{log.status}</span>
                   </div>
                </div>
