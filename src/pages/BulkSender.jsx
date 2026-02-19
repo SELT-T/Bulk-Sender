@@ -1,18 +1,22 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 
 const BulkSender = () => {
   // --- States ---
   const [contacts, setContacts] = useState([]);
+  const [showContactPreview, setShowContactPreview] = useState(false); // New: Preview toggle
+  
   const [message, setMessage] = useState("Hello {{Name}}, here is your invite!");
-  const [file, setFile] = useState(null); // Excel File
-  const [media, setMedia] = useState(null); // Image/Video/PDF
+  const [file, setFile] = useState(null); 
+  const [media, setMedia] = useState(null); 
   const [mediaPreview, setMediaPreview] = useState(null);
   
-  // --- Sticker Canvas States ---
+  // --- Advanced Sticker States ---
   const [showSticker, setShowSticker] = useState(false);
   const [stickerText, setStickerText] = useState("{{Name}}");
-  const [stickerPos, setStickerPos] = useState({ x: 50, y: 50 }); // Percentage based position
+  const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं"); // New: Second Line
+  const [stickerColor, setStickerColor] = useState("#ffffff"); // New: Text Color
+  const [stickerPos, setStickerPos] = useState({ x: 50, y: 50 }); 
   const [isDragging, setIsDragging] = useState(false);
   
   // --- Sending States ---
@@ -22,12 +26,13 @@ const BulkSender = () => {
 
   const imageContainerRef = useRef(null);
 
-  // 1. Handle Media Upload & Preview
+  // 1. Handle Media Upload
   const handleMediaUpload = (e) => {
     const uploadedFile = e.target.files[0];
     if (uploadedFile) {
       setMedia(uploadedFile);
       setMediaPreview(URL.createObjectURL(uploadedFile));
+      setShowSticker(true); // Auto-enable sticker on image upload
     }
   };
 
@@ -45,57 +50,49 @@ const BulkSender = () => {
       const data = XLSX.utils.sheet_to_json(ws);
       
       const formattedContacts = data.map(row => ({
-        phone: row.Phone || row.Mobile || row.Number,
-        name: row.Name || row.Customer || 'Valued Guest'
+        phone: row.Phone || row.Mobile || row.Number || row.contact,
+        name: row.Name || row.Customer || 'Guest'
       })).filter(c => c.phone);
 
       setContacts(formattedContacts);
+      setShowContactPreview(true); // Auto-show preview
     };
     reader.readAsBinaryString(uploadedFile);
   };
 
-  // 3. DRAG & DROP LOGIC (The Magic) 🖱️👆
-  const handleMouseDown = (e) => {
-    setIsDragging(true);
-  };
+  // 3. DRAG & DROP LOGIC
+  const handleMouseDown = (e) => setIsDragging(true);
+  const handleMouseUp = () => setIsDragging(false);
 
   const handleMouseMove = (e) => {
     if (!isDragging || !imageContainerRef.current) return;
-
     const rect = imageContainerRef.current.getBoundingClientRect();
     const clientX = e.clientX || e.touches?.[0].clientX;
     const clientY = e.clientY || e.touches?.[0].clientY;
 
-    // Calculate position in Percentage (%) to be responsive
     let x = ((clientX - rect.left) / rect.width) * 100;
     let y = ((clientY - rect.top) / rect.height) * 100;
 
-    // Boundaries (0 to 100%)
     x = Math.max(0, Math.min(100, x));
     y = Math.max(0, Math.min(100, y));
 
     setStickerPos({ x, y });
   };
 
-  const handleMouseUp = () => {
-    setIsDragging(false);
-  };
-
-  // 4. SENDING LOGIC (Using Coordinates)
+  // 4. SENDING LOGIC
   const startCampaign = async () => {
-    if (contacts.length === 0) return alert("❌ Upload Excel First!");
+    if (contacts.length === 0) return alert("❌ Please upload an Excel file first!");
     setIsSending(true);
     setLogs([]);
 
     const API_URL = "https://reachify-api.selt-3232.workers.dev";
-    const user = JSON.parse(localStorage.getItem('reachify_user'));
+    const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
     for (let i = 0; i < contacts.length; i++) {
       const contact = contacts[i];
       const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
 
-      // Log Update
-      const newLog = { id: i + 1, to: contact.phone, status: "Sending...", time: new Date().toLocaleTimeString() };
+      const newLog = { id: i + 1, to: contact.phone, status: "Sending...", name: contact.name };
       setLogs(prev => [newLog, ...prev]);
 
       try {
@@ -103,17 +100,17 @@ const BulkSender = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email: user?.email || 'demo@reachify.com',
+            email: user.email,
             phone: contact.phone,
             message: personalizedMsg,
             media_type: media?.type.split('/')[0] || 'text',
-            // Sticker Data Bhej rahe hain Backend ko
+            // Sticker Data sending to Backend
             sticker_config: showSticker ? {
-              text: contact.name, // Asli naam jayega
-              x: stickerPos.x,    // Coordinate X
-              y: stickerPos.y,    // Coordinate Y
-              color: "#000000",   // Default Black (Future: Color Picker)
-              size: 24            // Default Size
+              name_text: contact.name,
+              sub_text: subText,
+              color: stickerColor,
+              x: stickerPos.x,
+              y: stickerPos.y,
             } : null
           })
         });
@@ -130,18 +127,18 @@ const BulkSender = () => {
       await new Promise(r => setTimeout(r, delay * 1000));
     }
     setIsSending(false);
-    alert("Campaign Finished!");
+    alert("🎉 Campaign Finished Successfully!");
   };
 
   return (
     <div className="flex flex-col h-[calc(100vh-100px)] gap-6 max-w-7xl mx-auto p-2"
-         onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp}>
+         onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
       
       {/* HEADER */}
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-white">Advanced Campaign Manager</h2>
-          <p className="text-gray-400 text-sm">Drag stickers, customize media, and blast.</p>
+          <p className="text-gray-400 text-sm">Design personalized invites & blast to your list.</p>
         </div>
         <div className="flex items-center gap-4">
            <div className="bg-[#1e293b] px-4 py-2 rounded-lg border border-gray-700 flex items-center gap-2">
@@ -161,48 +158,104 @@ const BulkSender = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full overflow-hidden">
         
-        {/* LEFT COLUMN: SETUP (3 Columns wide) */}
-        <div className="lg:col-span-3 space-y-6 overflow-y-auto pr-2">
+        {/* LEFT COLUMN: SETUP */}
+        <div className="lg:col-span-3 space-y-4 overflow-y-auto pr-2 pb-10">
           
-          {/* 1. Uploads */}
+          {/* 1. Upload Data */}
           <div className="bg-[#1e293b] p-5 rounded-2xl border border-gray-700 shadow-lg">
-            <h3 className="text-white font-bold mb-3">1. Upload Data</h3>
-            <div className="space-y-3">
-              <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-xl p-4 text-center hover:border-fuchsia-500 bg-[#0f172a]">
-                <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <p className="text-2xl mb-1">📊</p>
-                <p className="text-xs text-gray-300">{file ? file.name : "Upload Excel"}</p>
-              </div>
-              <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-xl p-4 text-center hover:border-fuchsia-500 bg-[#0f172a]">
-                <input type="file" accept="image/*, application/pdf, video/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <p className="text-2xl mb-1">🖼️</p>
-                <p className="text-xs text-gray-300">{media ? media.name : "Upload Media"}</p>
-              </div>
+            <h3 className="text-white font-bold mb-3">1. Upload Contacts</h3>
+            <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-xl p-4 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
+              <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              <p className="text-2xl mb-1">📊</p>
+              <p className="text-xs text-gray-300">{file ? file.name : "Upload Excel File"}</p>
             </div>
-            {contacts.length > 0 && <p className="text-xs text-green-400 mt-2">✅ {contacts.length} Contacts Ready</p>}
+
+            {/* LIVE CONTACT PREVIEW */}
+            {contacts.length > 0 && (
+              <div className="mt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
+                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-xs text-fuchsia-400 hover:text-white">
+                    {showContactPreview ? 'Hide List' : 'View List'}
+                  </button>
+                </div>
+                {showContactPreview && (
+                  <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1">
+                    {contacts.slice(0, 50).map((c, idx) => (
+                      <div key={idx} className="flex justify-between text-[10px] border-b border-gray-800 pb-1">
+                        <span className="text-gray-300 truncate w-1/2">{c.name}</span>
+                        <span className="text-gray-500 font-mono">{c.phone}</span>
+                      </div>
+                    ))}
+                    {contacts.length > 50 && <p className="text-[10px] text-center text-gray-500 mt-1">...and {contacts.length - 50} more</p>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* 2. Message */}
+          {/* 2. Media Upload */}
           <div className="bg-[#1e293b] p-5 rounded-2xl border border-gray-700 shadow-lg">
-            <h3 className="text-white font-bold mb-3">2. Message & Tools</h3>
+             <h3 className="text-white font-bold mb-3">2. Upload Card/Media</h3>
+             <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-xl p-4 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
+                <input type="file" accept="image/*, application/pdf, video/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                <p className="text-2xl mb-1">🖼️</p>
+                <p className="text-xs text-gray-300">{media ? media.name : "Upload Invitation Image"}</p>
+              </div>
+          </div>
+
+          {/* 3. Message & Sticker Config */}
+          <div className="bg-[#1e293b] p-5 rounded-2xl border border-gray-700 shadow-lg">
+            <h3 className="text-white font-bold mb-3">3. Personalization</h3>
+            
+            {/* Sticker Toggle */}
+            <div className="flex items-center justify-between bg-[#0f172a] p-3 rounded-lg border border-gray-600 mb-3">
+               <span className="text-sm text-white font-medium">✨ Enable Image Sticker</span>
+               <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} className="w-5 h-5 accent-fuchsia-500" />
+            </div>
+
+            {/* Sticker Advanced Options */}
+            {showSticker && (
+              <div className="space-y-3 mb-4 p-3 border border-fuchsia-500/30 bg-fuchsia-500/5 rounded-lg animate-fade-in">
+                 <div>
+                   <label className="text-[10px] text-gray-400">Sub-text (Niche wali line)</label>
+                   <input 
+                     type="text" 
+                     value={subText} 
+                     onChange={(e) => setSubText(e.target.value)}
+                     placeholder="e.g. सपरिवार आमंत्रित हैं"
+                     className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none mt-1"
+                   />
+                 </div>
+                 <div>
+                   <label className="text-[10px] text-gray-400 block mb-1">Text Color</label>
+                   <div className="flex items-center gap-2">
+                     <input 
+                       type="color" 
+                       value={stickerColor} 
+                       onChange={(e) => setStickerColor(e.target.value)}
+                       className="w-8 h-8 rounded cursor-pointer bg-transparent border-none"
+                     />
+                     <span className="text-xs text-gray-300">{stickerColor}</span>
+                   </div>
+                 </div>
+              </div>
+            )}
+
+            <label className="text-xs text-gray-400 mb-1 block">WhatsApp Message Text</label>
             <textarea 
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full h-24 bg-[#0f172a] border border-gray-600 rounded-xl p-3 text-white text-sm outline-none focus:border-fuchsia-500 resize-none mb-3"
+              className="w-full h-24 bg-[#0f172a] border border-gray-600 rounded-xl p-3 text-white text-sm outline-none focus:border-fuchsia-500 resize-none"
               placeholder="Message..."
             ></textarea>
-            
-            <div className="flex items-center justify-between bg-[#0f172a] p-3 rounded-lg border border-gray-600">
-               <span className="text-sm text-white">Enable Sticker</span>
-               <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} className="w-5 h-5 accent-fuchsia-500" />
-            </div>
           </div>
         </div>
 
-        {/* MIDDLE COLUMN: LIVE PREVIEW & EDITOR (5 Columns wide) */}
+        {/* MIDDLE COLUMN: CANVAS EDITOR */}
         <div className="lg:col-span-5 bg-[#0f172a] rounded-2xl border border-gray-700 shadow-lg flex flex-col relative overflow-hidden">
-           <div className="absolute top-4 left-4 z-10 bg-black/50 px-3 py-1 rounded-full text-xs text-white">
-              👁️ Live Preview Editor
+           <div className="absolute top-4 left-4 z-10 bg-black/70 px-4 py-1.5 rounded-full text-xs text-white border border-white/10 flex items-center gap-2 shadow-lg">
+              <span className="animate-pulse w-2 h-2 bg-red-500 rounded-full"></span> Live Editor
            </div>
            
            <div 
@@ -213,20 +266,19 @@ const BulkSender = () => {
              {mediaPreview ? (
                <div 
                  ref={imageContainerRef}
-                 className="relative max-w-full max-h-full shadow-2xl border-4 border-white/10 rounded-lg overflow-hidden cursor-crosshair select-none"
+                 className="relative max-w-full max-h-full shadow-2xl border-2 border-dashed border-gray-600 rounded-lg overflow-hidden cursor-crosshair select-none"
                >
-                 {/* Main Image */}
+                 {/* Background Image */}
                  {media?.type.startsWith('image') ? (
-                    <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[60vh] object-contain" />
+                    <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[65vh] object-contain pointer-events-none" />
                  ) : (
-                    <div className="w-full h-64 bg-gray-800 flex items-center justify-center text-gray-400 flex-col">
+                    <div className="w-full h-64 bg-gray-800 flex items-center justify-center text-gray-400 flex-col px-10 text-center">
                        <span className="text-4xl mb-2">📄</span>
                        <span>{media.name}</span>
-                       <span className="text-xs mt-1">(PDF/Video Preview not supported for stickers yet)</span>
                     </div>
                  )}
 
-                 {/* DRAGGABLE STICKER OVERLAY */}
+                 {/* DRAGGABLE DOUBLE-LINE STICKER */}
                  {showSticker && media?.type.startsWith('image') && (
                    <div 
                      onMouseDown={handleMouseDown}
@@ -235,46 +287,64 @@ const BulkSender = () => {
                        top: `${stickerPos.y}%`, 
                        left: `${stickerPos.x}%`,
                        transform: 'translate(-50%, -50%)',
-                       cursor: isDragging ? 'grabbing' : 'grab'
+                       cursor: isDragging ? 'grabbing' : 'grab',
+                       color: stickerColor, // Applied Dynamic Color
+                       textShadow: stickerColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : '1px 1px 4px rgba(255,255,255,0.5)' // Gives readability
                      }}
-                     className="absolute bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg text-black font-bold shadow-xl border border-fuchsia-500 whitespace-nowrap z-20 hover:scale-105 transition-transform"
+                     className="absolute text-center hover:scale-105 transition-transform z-20"
                    >
-                     {stickerText}
-                     {/* Resize Handle (Visual Only) */}
-                     <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-fuchsia-500 rounded-full"></div>
+                     <div className="font-bold text-2xl tracking-wide whitespace-nowrap bg-black/20 px-4 pt-2 pb-1 rounded-t-lg backdrop-blur-sm border border-white/20 border-b-0">
+                        {stickerText}
+                     </div>
+                     {subText && (
+                       <div className="text-sm font-medium whitespace-nowrap bg-black/20 px-4 pb-2 pt-1 rounded-b-lg backdrop-blur-sm border border-white/20 border-t-0">
+                          {subText}
+                       </div>
+                     )}
+                     
+                     {/* Drag Indicator */}
+                     {isDragging && <div className="absolute -inset-2 border-2 border-dashed border-fuchsia-500 rounded-xl"></div>}
                    </div>
                  )}
                </div>
              ) : (
                <div className="text-gray-500 text-center">
-                 <p className="text-4xl mb-2">🖼️</p>
-                 <p>Upload an image to start editing stickers</p>
+                 <p className="text-5xl mb-4 opacity-50">🖱️</p>
+                 <p>Upload an image to start designing</p>
                </div>
              )}
            </div>
 
-           {/* Coordinates Display */}
+           {/* Coordinates Info */}
            {showSticker && (
-             <div className="bg-[#1e293b] p-2 text-center text-xs text-gray-400 border-t border-gray-700">
-                Position: X: {Math.round(stickerPos.x)}% | Y: {Math.round(stickerPos.y)}%
+             <div className="bg-[#1e293b] p-3 flex justify-between items-center text-xs text-gray-400 border-t border-gray-700">
+                <span>Drag text to position it exactly on the card.</span>
+                <span className="font-mono bg-black/50 px-2 py-1 rounded">X: {Math.round(stickerPos.x)}% | Y: {Math.round(stickerPos.y)}%</span>
              </div>
            )}
         </div>
 
-        {/* RIGHT COLUMN: LOGS (4 Columns wide) */}
+        {/* RIGHT COLUMN: LOGS */}
         <div className="lg:col-span-4 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-700 bg-[#0f172a] font-bold text-white">
-            📡 Sending Logs
+          <div className="p-4 border-b border-gray-700 bg-[#0f172a] font-bold text-white flex justify-between items-center">
+            <span>📡 Live Delivery Logs</span>
+            <span className="text-xs font-normal text-gray-400">Total: {logs.length}</span>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {logs.length === 0 ? (
-               <p className="text-gray-500 text-sm text-center mt-10">Logs will appear here...</p>
+               <div className="h-full flex flex-col items-center justify-center opacity-50 text-gray-500">
+                  <span className="text-4xl mb-2">⏳</span>
+                  <p className="text-sm">Logs will appear during campaign</p>
+               </div>
             ) : logs.map(log => (
-               <div key={log.id} className="flex justify-between items-center bg-[#0f172a] p-3 rounded border border-gray-700/50">
-                  <span className="text-xs text-gray-400">#{log.id} {log.to}</span>
-                  <span className={`text-xs font-bold px-2 py-1 rounded ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
-                    {log.status}
-                  </span>
+               <div key={log.id} className="flex flex-col bg-[#0f172a] p-3 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors">
+                  <div className="flex justify-between items-center mb-1">
+                     <span className="text-xs font-bold text-gray-300 truncate w-32">{log.name}</span>
+                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                       {log.status}
+                     </span>
+                  </div>
+                  <span className="text-xs font-mono text-gray-500">{log.to}</span>
                </div>
             ))}
           </div>
