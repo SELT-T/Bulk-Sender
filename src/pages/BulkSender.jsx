@@ -5,6 +5,7 @@ const BulkSender = () => {
   // --- States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
+  const [countryCode, setCountryCode] = useState('91'); // NAYA: Country code state
   
   const [message, setMessage] = useState("Hello {{Name}}, here is your file!");
   const [file, setFile] = useState(null); 
@@ -12,19 +13,19 @@ const BulkSender = () => {
   const [mediaPreview, setMediaPreview] = useState(null);
   
   // --- Real WhatsApp Status State ---
-  const [waStatus, setWaStatus] = useState('checking'); // checking, connected, disconnected
+  const [waStatus, setWaStatus] = useState('checking'); 
   
-  // --- PRO Sticker States (Resizing & Styling) ---
+  // --- PRO Sticker States ---
   const [showSticker, setShowSticker] = useState(false);
   const [stickerText, setStickerText] = useState("{{Name}}");
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
   const [stickerColor, setStickerColor] = useState("#ffffff");
-  const [stickerBgColor, setStickerBgColor] = useState("rgba(0, 0, 0, 0.4)"); // Semi-transparent black
+  const [stickerBgColor, setStickerBgColor] = useState("rgba(0, 0, 0, 0.4)"); 
   const [stickerBorder, setStickerBorder] = useState("none"); 
   const [fontFamily, setFontFamily] = useState("Arial, sans-serif");
   
   const [stickerPos, setStickerPos] = useState({ x: 50, y: 50 }); 
-  const [stickerWidth, setStickerWidth] = useState(250); // Default width in px
+  const [stickerWidth, setStickerWidth] = useState(250); 
   
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -42,7 +43,7 @@ const BulkSender = () => {
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
   const user = JSON.parse(localStorage.getItem('reachify_user'));
 
-  // 0. 🚀 REAL WHATSAPP CONNECTION CHECK (No Dummy Data)
+  // 0. REAL WHATSAPP CONNECTION CHECK
   useEffect(() => {
     const checkRealConnection = async () => {
       if (!user) return setWaStatus('disconnected');
@@ -53,7 +54,6 @@ const BulkSender = () => {
           body: JSON.stringify({ email: user.email })
         });
         const data = await res.json();
-        // Agar Database me instance_id aur token dono hain, tabhi connected mano
         if (data.instance_id && data.access_token) {
           setWaStatus('connected');
         } else {
@@ -136,10 +136,33 @@ const BulkSender = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
-  // 3. DRAG & RESIZE LOGIC (The Magic)
+  // 🚀 NAYA FEATURE: BULK COUNTRY CODE ADDER
+  const applyCountryCode = () => {
+    if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
+    
+    const code = countryCode.replace('+', '').trim();
+    
+    const updatedContacts = contacts.map(c => {
+      let phone = String(c.phone).replace(/\D/g, ''); 
+      
+      if (phone.length === 10) {
+        phone = code + phone;
+      } 
+      else if (phone.length === 11 && phone.startsWith('0')) {
+        phone = code + phone.substring(1);
+      }
+      
+      return { ...c, phone: phone };
+    });
+
+    setContacts(updatedContacts);
+    alert(`✅ Success! Country Code (+${code}) added to all numbers.`);
+  };
+
+  // 3. DRAG & RESIZE LOGIC
   const handleDragStart = (e) => { if(!isResizing) setIsDragging(true); };
   const handleResizeStart = (e) => { 
-    e.stopPropagation(); // Resize karte waqt drag mat hone do
+    e.stopPropagation(); 
     setIsResizing(true); 
   };
   
@@ -161,10 +184,9 @@ const BulkSender = () => {
       setStickerPos({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
     } 
     else if (isResizing) {
-      // Calculate new width based on mouse distance from sticker center
       const stickerCenterX = (stickerPos.x / 100) * rect.width + rect.left;
       const newWidth = Math.abs(clientX - stickerCenterX) * 2;
-      setStickerWidth(Math.max(100, Math.min(newWidth, rect.width * 0.9))); // Min 100px, Max 90% of image
+      setStickerWidth(Math.max(100, Math.min(newWidth, rect.width * 0.9))); 
     }
   };
 
@@ -321,22 +343,41 @@ const BulkSender = () => {
               <p className="text-xs text-gray-300">{file ? file.name : "Upload Excel File"}</p>
             </div>
 
+            {/* 🚀 CONTACT LIST PREVIEW & COUNTRY CODE TOOL */}
             {contacts.length > 0 && (
               <div className="mt-4 animate-fade-in-up">
-                <div className="flex justify-between items-center mb-2 bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
+                <div className="flex justify-between items-center mb-3 bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
                   <span className="text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
-                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-xs text-fuchsia-400 hover:text-white font-bold">
+                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">
                     {showContactPreview ? 'Hide List ▲' : 'View List ▼'}
                   </button>
                 </div>
+                
                 {showContactPreview && (
-                  <div className="max-h-64 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-3 space-y-2 shadow-inner scroll-smooth">
-                    {contacts.map((c, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-[11px] border-b border-gray-800 pb-1">
-                        <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
-                        <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-2 py-0.5 rounded flex-shrink-0">{c.phone}</span>
-                      </div>
-                    ))}
+                  <div className="animate-fade-in">
+                    {/* Country Code Fixer */}
+                    <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
+                      <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">Code: +</span>
+                      <input 
+                        type="text" 
+                        value={countryCode} 
+                        onChange={e => setCountryCode(e.target.value)} 
+                        className="w-8 bg-transparent text-white text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" 
+                        placeholder="91"
+                      />
+                      <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[10px] rounded font-bold py-1.5 transition-all">
+                        Apply to All
+                      </button>
+                    </div>
+
+                    <div className="max-h-64 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner scroll-smooth custom-scrollbar">
+                      {contacts.map((c, idx) => (
+                        <div key={idx} className="flex justify-between items-center text-[11px] border-b border-gray-800 pb-1">
+                          <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
+                          <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -460,7 +501,7 @@ const BulkSender = () => {
                      onTouchStart={handleDragStart}
                      style={{ 
                        top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, 
-                       width: `${stickerWidth}px`, // Dynamic Width applied here
+                       width: `${stickerWidth}px`, 
                        transform: 'translate(-50%, -50%)', 
                        cursor: isDragging ? 'grabbing' : 'grab',
                        color: stickerColor, 
