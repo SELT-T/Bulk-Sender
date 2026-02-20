@@ -2,18 +2,23 @@ import React, { useState, useEffect } from 'react';
 
 const Dashboard = ({ setActivePage }) => {
   const [userName, setUserName] = useState('Admin');
+  
+  // 🚀 STRICTLY REAL STATES (Initialized to Zero/Empty)
   const [apiHealth, setApiHealth] = useState({ wa: false, social: false, maps: false, ai: false });
-  const [stats, setStats] = useState({ sent: 12450, failed: 23, pending: 0, credits: 4500 });
+  const [stats, setStats] = useState({ sent: 0, failed: 0, pending: 0, credits: 0, leads: 0 });
+  const [recentActivities, setRecentActivities] = useState([]); // Empty array, no dummy campaigns
+  const [chartData, setChartData] = useState([0, 0, 0, 0, 0, 0, 0]); // Blank chart
+  
   const [isLoading, setIsLoading] = useState(true);
 
   // Load Real User & Local Settings Status
   useEffect(() => {
+    // 1. Fetch Real Name from Local Storage
     const user = JSON.parse(localStorage.getItem('reachify_user'));
     if (user && user.name) setUserName(user.name);
 
+    // 2. Fetch Real API Connections from Local Storage
     const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings')) || {};
-    
-    // Check which APIs are configured locally
     setApiHealth({
       wa: !!savedSettings.wa_access_token,
       social: !!(savedSettings.fb_app_id || savedSettings.ig_access_token),
@@ -21,7 +26,9 @@ const Dashboard = ({ setActivePage }) => {
       ai: !!savedSettings.ai_api_key
     });
 
-    // Simulate backend fetch
+    // 3. Real Backend Fetch will go here later
+    // fetch('/api/dashboard-stats').then...
+    
     setTimeout(() => setIsLoading(false), 800);
   }, []);
 
@@ -36,7 +43,7 @@ const Dashboard = ({ setActivePage }) => {
           <h1 className="text-3xl font-black text-white tracking-wide">
             Welcome back, <span className="bg-gradient-to-r from-fuchsia-400 to-purple-500 bg-clip-text text-transparent">{userName}</span> 👋
           </h1>
-          <p className="text-gray-400 text-sm mt-1">Here is what's happening with your campaigns and automations today.</p>
+          <p className="text-gray-400 text-sm mt-1">Monitor your real-time campaign performance here.</p>
         </div>
         <div className="flex gap-3">
            <button onClick={() => setActivePage('campaign')} className="bg-white/10 hover:bg-white/20 text-white px-5 py-2 rounded-xl text-sm font-bold border border-white/10 transition-all">
@@ -48,35 +55,35 @@ const Dashboard = ({ setActivePage }) => {
         </div>
       </div>
 
-      {/* 🌟 TOP STATS CARDS */}
+      {/* 🌟 TOP STATS CARDS (REAL ZERO STATES) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-6">
         
         <div className="bg-gradient-to-br from-fuchsia-900/50 to-purple-900/50 p-5 rounded-2xl border border-fuchsia-500/30 shadow-lg relative overflow-hidden">
           <div className="absolute top-0 right-0 p-3 opacity-20 text-6xl">💬</div>
           <h3 className="text-fuchsia-300 font-bold text-xs uppercase tracking-wider mb-1">Messages Sent</h3>
-          <p className="text-3xl font-black text-white">{isLoading ? '...' : stats.sent.toLocaleString()}</p>
-          <p className="text-[10px] text-green-400 mt-2 font-bold">↑ 12% from last week</p>
+          <p className="text-3xl font-black text-white">{isLoading ? '...' : stats.sent}</p>
+          <p className="text-[10px] text-gray-400 mt-2 font-bold">Awaiting campaigns</p>
         </div>
 
         <div className="bg-gradient-to-br from-emerald-900/50 to-teal-900/50 p-5 rounded-2xl border border-emerald-500/30 shadow-lg relative overflow-hidden">
           <div className="absolute top-0 right-0 p-3 opacity-20 text-6xl">🔌</div>
           <h3 className="text-emerald-300 font-bold text-xs uppercase tracking-wider mb-1">Active APIs</h3>
           <p className="text-3xl font-black text-white">{isLoading ? '...' : `${activeApisCount} / 4`}</p>
-          <p className="text-[10px] text-emerald-400 mt-2 font-bold">System Online & Stable</p>
+          <p className="text-[10px] text-emerald-400 mt-2 font-bold">System Status</p>
         </div>
 
         <div className="bg-gradient-to-br from-blue-900/50 to-indigo-900/50 p-5 rounded-2xl border border-blue-500/30 shadow-lg relative overflow-hidden">
           <div className="absolute top-0 right-0 p-3 opacity-20 text-6xl">👥</div>
           <h3 className="text-blue-300 font-bold text-xs uppercase tracking-wider mb-1">Leads Extracted</h3>
-          <p className="text-3xl font-black text-white">{isLoading ? '...' : '8,340'}</p>
-          <p className="text-[10px] text-blue-400 mt-2 font-bold">Via Google Maps & Groups</p>
+          <p className="text-3xl font-black text-white">{isLoading ? '...' : stats.leads}</p>
+          <p className="text-[10px] text-gray-400 mt-2 font-bold">Via Google Maps & Groups</p>
         </div>
 
         <div className="bg-gradient-to-br from-amber-900/50 to-orange-900/50 p-5 rounded-2xl border border-amber-500/30 shadow-lg relative overflow-hidden">
           <div className="absolute top-0 right-0 p-3 opacity-20 text-6xl">🧠</div>
           <h3 className="text-amber-300 font-bold text-xs uppercase tracking-wider mb-1">AI Tokens Left</h3>
-          <p className="text-3xl font-black text-white">{isLoading ? '...' : stats.credits.toLocaleString()}</p>
-          <p className="text-[10px] text-amber-400 mt-2 font-bold">Refills on 1st of month</p>
+          <p className="text-3xl font-black text-white">{isLoading ? '...' : stats.credits}</p>
+          <p className="text-[10px] text-gray-400 mt-2 font-bold">Refills on 1st of month</p>
         </div>
 
       </div>
@@ -84,28 +91,31 @@ const Dashboard = ({ setActivePage }) => {
       {/* 🌟 MIDDLE SECTION: CHARTS & HEALTH */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         
-        {/* Fake Analytics Chart */}
+        {/* Real Empty Analytics Chart */}
         <div className="lg:col-span-2 bg-[#1e293b] p-5 rounded-2xl border border-gray-700 shadow-xl flex flex-col">
            <h3 className="text-white font-bold text-sm mb-6 flex justify-between items-center">
              <span>📈 Weekly Campaign Performance</span>
              <span className="text-[10px] bg-[#0f172a] border border-gray-600 px-2 py-1 rounded text-gray-400">Last 7 Days</span>
            </h3>
            <div className="flex-1 flex items-end justify-between gap-2 h-40 mt-auto border-b border-gray-700 pb-2 relative">
-              {/* CSS Based Mock Bar Chart */}
               <div className="absolute top-0 w-full border-t border-gray-700/50 border-dashed h-0"></div>
               <div className="absolute top-1/2 w-full border-t border-gray-700/50 border-dashed h-0"></div>
-              {[40, 70, 45, 90, 60, 30, 85].map((val, i) => (
+              
+              {chartData.map((val, i) => (
                 <div key={i} className="w-full max-w-[40px] flex flex-col items-center gap-2 group z-10">
-                   <div className="w-full bg-gradient-to-t from-fuchsia-600 to-purple-500 rounded-t-sm transition-all group-hover:opacity-80 relative" style={{ height: `${val}%` }}>
-                      <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] text-white opacity-0 group-hover:opacity-100 bg-black px-1.5 rounded">{val * 12}</span>
+                   <div className="w-full bg-gradient-to-t from-gray-700 to-gray-600 rounded-t-sm transition-all relative" style={{ height: `${val > 0 ? val : 2}%` }}>
+                      <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[9px] text-white opacity-0 group-hover:opacity-100 bg-black px-1.5 rounded">{val}</span>
                    </div>
                    <span className="text-[10px] text-gray-500 font-bold">Day {i+1}</span>
                 </div>
               ))}
            </div>
+           {Math.max(...chartData) === 0 && (
+             <p className="text-center text-[10px] text-gray-500 mt-2">No activity recorded in the last 7 days.</p>
+           )}
         </div>
 
-        {/* API Health Monitor */}
+        {/* Real API Health Monitor */}
         <div className="bg-[#1e293b] p-5 rounded-2xl border border-gray-700 shadow-xl flex flex-col">
            <h3 className="text-white font-bold text-sm mb-4 flex justify-between items-center">
              <span>🩺 API Health Monitor</span>
@@ -191,46 +201,42 @@ const Dashboard = ({ setActivePage }) => {
            </div>
         </div>
 
-        {/* Recent Activity Table */}
+        {/* Real Activity Table (Empty State) */}
         <div className="lg:col-span-2 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-xl flex flex-col overflow-hidden">
            <div className="p-4 border-b border-gray-700 bg-[#0f172a] flex justify-between items-center">
              <h3 className="text-white font-bold text-sm">🕒 Recent Automations</h3>
            </div>
-           <div className="p-4 flex-1 bg-[#0f172a]/30 overflow-x-auto">
+           <div className="p-4 flex-1 bg-[#0f172a]/30 overflow-x-auto flex flex-col">
               <table className="w-full text-left text-xs whitespace-nowrap">
                 <thead className="text-gray-500 border-b border-gray-800 uppercase tracking-wide">
                   <tr>
-                    <th className="pb-3 px-2">Task / Campaign</th>
-                    <th className="pb-3 px-2">Module</th>
-                    <th className="pb-3 px-2">Date & Time</th>
-                    <th className="pb-3 px-2 text-right">Status</th>
+                    <th className="pb-3 px-2 w-1/3">Task / Campaign</th>
+                    <th className="pb-3 px-2 w-1/4">Module</th>
+                    <th className="pb-3 px-2 w-1/4">Date & Time</th>
+                    <th className="pb-3 px-2 text-right w-1/6">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-800">
-                  <tr className="hover:bg-white/5">
-                    <td className="p-3 px-2 font-bold text-gray-200">Diwali Offer Blast (500 Nos)</td>
-                    <td className="p-3 px-2 text-fuchsia-400">WhatsApp Sender</td>
-                    <td className="p-3 px-2 text-gray-500">Today, 10:45 AM</td>
-                    <td className="p-3 px-2 text-right"><span className="bg-green-500/20 text-green-400 px-2 py-1 rounded font-bold">Completed</span></td>
-                  </tr>
-                  <tr className="hover:bg-white/5">
-                    <td className="p-3 px-2 font-bold text-gray-200">Real Estate Scrape (Mumbai)</td>
-                    <td className="p-3 px-2 text-blue-400">GMap Scraper</td>
-                    <td className="p-3 px-2 text-gray-500">Yesterday, 04:20 PM</td>
-                    <td className="p-3 px-2 text-right"><span className="bg-green-500/20 text-green-400 px-2 py-1 rounded font-bold">Saved (850)</span></td>
-                  </tr>
-                  <tr className="hover:bg-white/5">
-                    <td className="p-3 px-2 font-bold text-gray-200">Birthday Auto-Wish (3 Users)</td>
-                    <td className="p-3 px-2 text-pink-400">Social Engine</td>
-                    <td className="p-3 px-2 text-gray-500">Yesterday, 09:00 AM</td>
-                    <td className="p-3 px-2 text-right"><span className="bg-green-500/20 text-green-400 px-2 py-1 rounded font-bold">Delivered</span></td>
-                  </tr>
-                  <tr className="hover:bg-white/5">
-                    <td className="p-3 px-2 font-bold text-gray-200">New Product Post (FB + Insta)</td>
-                    <td className="p-3 px-2 text-indigo-400">Universal Publisher</td>
-                    <td className="p-3 px-2 text-gray-500">16 Feb 2026</td>
-                    <td className="p-3 px-2 text-right"><span className="bg-yellow-500/20 text-yellow-400 px-2 py-1 rounded font-bold">Scheduled</span></td>
-                  </tr>
+                  {recentActivities.length > 0 ? (
+                    recentActivities.map((act, idx) => (
+                      <tr key={idx} className="hover:bg-white/5">
+                        <td className="p-3 px-2 font-bold text-gray-200">{act.name}</td>
+                        <td className="p-3 px-2 text-fuchsia-400">{act.module}</td>
+                        <td className="p-3 px-2 text-gray-500">{act.date}</td>
+                        <td className="p-3 px-2 text-right"><span className="bg-green-500/20 text-green-400 px-2 py-1 rounded font-bold">{act.status}</span></td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="py-10 text-center">
+                         <div className="flex flex-col items-center justify-center opacity-50 text-gray-400">
+                            <span className="text-4xl mb-3">📭</span>
+                            <p className="font-bold text-sm">No recent activity found.</p>
+                            <p className="text-[10px] mt-1">Start your first campaign or extraction to see logs here.</p>
+                         </div>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
            </div>
