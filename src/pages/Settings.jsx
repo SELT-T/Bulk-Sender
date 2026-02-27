@@ -5,6 +5,12 @@ const Settings = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState({}); 
 
+  // === WHATSAPP WEB SPECIFIC STATES ===
+  const [waConnectionType, setWaConnectionType] = useState('api'); // 'api' or 'web'
+  const [isGeneratingQR, setIsGeneratingQR] = useState(false);
+  const [qrCodeData, setQrCodeData] = useState(null);
+  const [webStatus, setWebStatus] = useState('disconnected'); // disconnected, scanning, connected
+
   // === GLOBAL SETTINGS STATE (Real Working via LocalStorage) ===
   const [settings, setSettings] = useState({
     // Profile
@@ -32,10 +38,16 @@ const Settings = () => {
     notify_wa_alerts: false,
     notify_system_updates: true,
     
-    // WhatsApp API
+    // WhatsApp Connections
+    wa_connection_mode: 'api', // 'api' or 'web'
+    // 1. API Mode Settings
     wa_provider: 'evolution',
     wa_instance_id: '',
     wa_access_token: '',
+    // 2. Web Mode Anti-Ban Settings
+    anti_ban_min_delay: 5,
+    anti_ban_max_delay: 15,
+    anti_ban_typing_status: true,
     
     // Social Media APIs
     fb_app_id: '',
@@ -61,7 +73,9 @@ const Settings = () => {
   useEffect(() => {
     const savedSettings = localStorage.getItem('reachify_api_settings');
     if (savedSettings) {
-      setSettings(prev => ({ ...prev, ...JSON.parse(savedSettings) }));
+      const parsed = JSON.parse(savedSettings);
+      setSettings(prev => ({ ...prev, ...parsed }));
+      if(parsed.wa_connection_mode) setWaConnectionType(parsed.wa_connection_mode);
     }
   }, []);
 
@@ -69,6 +83,11 @@ const Settings = () => {
   const handleChange = (e) => {
     const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
     setSettings(prev => ({ ...prev, [e.target.name]: value }));
+  };
+
+  const handleModeChange = (mode) => {
+    setWaConnectionType(mode);
+    setSettings(prev => ({ ...prev, wa_connection_mode: mode }));
   };
 
   const toggleVisibility = (field) => {
@@ -94,6 +113,30 @@ const Settings = () => {
         alert("✅ Settings Saved Locally!");
       }, 800);
     }
+  };
+
+  // 🚀 FAKE QR GENERATOR FOR NOW (Will be replaced by real backend websocket)
+  const generateQRCode = () => {
+    setIsGeneratingQR(true);
+    setWebStatus('scanning');
+    setQrCodeData(null);
+    
+    // Simulate fetching QR from bailey/whatsapp-web.js backend
+    setTimeout(() => {
+      // Dummy base64 QR image for UI presentation
+      setQrCodeData("https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/QR_code_for_mobile_English_Wikipedia.svg/1200px-QR_code_for_mobile_English_Wikipedia.svg.png");
+      setIsGeneratingQR(false);
+    }, 2000);
+  };
+
+  const simulateConnection = () => {
+    setWebStatus('connected');
+    alert("✅ WhatsApp Web Linked Successfully!");
+  };
+
+  const disconnectWeb = () => {
+    setWebStatus('disconnected');
+    setQrCodeData(null);
   };
 
   // --- UI MENU CONFIG ---
@@ -343,38 +386,155 @@ const Settings = () => {
             )}
 
             {/* ========================================= */}
-            {/* 6. WHATSAPP API SETTINGS */}
+            {/* 6. WHATSAPP ENGINE SETTINGS */}
             {/* ========================================= */}
             {activeTab === 'whatsapp' && (
-              <div className="space-y-6 animate-fade-in max-w-2xl">
-                <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl flex gap-3 text-sm text-gray-300">
-                  <span className="text-xl">💬</span>
-                  <p>Link your Gateway provider to enable Bulk Sender and Auto-Responders.</p>
+              <div className="space-y-6 animate-fade-in max-w-3xl">
+                
+                {/* Connection Mode Toggle */}
+                <div className="bg-[#0f172a] p-1.5 rounded-xl border border-gray-700 flex w-full">
+                   <button 
+                     onClick={() => handleModeChange('api')}
+                     className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${waConnectionType === 'api' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                   >
+                     ☁️ Official Cloud API (Tokens)
+                   </button>
+                   <button 
+                     onClick={() => handleModeChange('web')}
+                     className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${waConnectionType === 'web' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+                   >
+                     📱 WhatsApp Web (QR Scanner)
+                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="text-xs text-gray-400 font-bold mb-1 block">Gateway Provider</label>
-                    <select name="wa_provider" value={settings.wa_provider} onChange={handleChange} className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3.5 text-sm text-white outline-none focus:border-emerald-500">
-                      <option value="evolution">Evolution API (Node)</option>
-                      <option value="wapi">WAPI Gateway</option>
-                      <option value="meta">Meta Cloud API (Official)</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 font-bold mb-1 block">Instance / Phone ID</label>
-                    <input type="text" name="wa_instance_id" value={settings.wa_instance_id} onChange={handleChange} placeholder="reachify-inst-01" className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3.5 text-white font-mono text-sm outline-none focus:border-emerald-500" />
-                  </div>
-                  <div className="col-span-1 md:col-span-2">
-                    <label className="text-xs text-gray-400 font-bold mb-1 block">Secure Access Token</label>
-                    <div className="relative">
-                      <input type={showPassword['wa_token'] ? 'text' : 'password'} name="wa_access_token" value={settings.wa_access_token} onChange={handleChange} placeholder="Paste your API key here..." className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3.5 text-white font-mono text-sm outline-none focus:border-emerald-500 pr-12" />
-                      <button onClick={() => toggleVisibility('wa_token')} className="absolute right-4 top-3.5 text-gray-400 hover:text-white">
-                        {showPassword['wa_token'] ? '👁️' : '🙈'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                {/* ----------------- MODE 1: CLOUD API ----------------- */}
+                {waConnectionType === 'api' && (
+                   <div className="space-y-6 animate-fade-in-up">
+                     <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl flex gap-3 text-sm text-emerald-100">
+                       <span className="text-xl">ℹ️</span>
+                       <p>Use Meta Cloud API or Third-Party Gateways (Evolution/WAPI). Best for verified numbers and high-volume official messaging.</p>
+                     </div>
+
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0f172a] p-6 rounded-xl border border-gray-700">
+                       <div>
+                         <label className="text-xs text-gray-400 font-bold mb-1 block">Gateway Provider</label>
+                         <select name="wa_provider" value={settings.wa_provider} onChange={handleChange} className="w-full bg-[#1e293b] border border-gray-600 rounded-xl p-3.5 text-sm text-white outline-none focus:border-emerald-500">
+                           <option value="evolution">Evolution API (Node)</option>
+                           <option value="wapi">WAPI Gateway</option>
+                           <option value="meta">Meta Cloud API (Official)</option>
+                         </select>
+                       </div>
+                       <div>
+                         <label className="text-xs text-gray-400 font-bold mb-1 block">Instance / Phone ID</label>
+                         <input type="text" name="wa_instance_id" value={settings.wa_instance_id} onChange={handleChange} placeholder="reachify-inst-01" className="w-full bg-[#1e293b] border border-gray-600 rounded-xl p-3.5 text-white font-mono text-sm outline-none focus:border-emerald-500" />
+                       </div>
+                       <div className="col-span-1 md:col-span-2">
+                         <label className="text-xs text-gray-400 font-bold mb-1 block">Secure Access Token</label>
+                         <div className="relative">
+                           <input type={showPassword['wa_token'] ? 'text' : 'password'} name="wa_access_token" value={settings.wa_access_token} onChange={handleChange} placeholder="Paste your API key here..." className="w-full bg-[#1e293b] border border-gray-600 rounded-xl p-3.5 text-white font-mono text-sm outline-none focus:border-emerald-500 pr-12" />
+                           <button onClick={() => toggleVisibility('wa_token')} className="absolute right-4 top-3.5 text-gray-400 hover:text-white">
+                             {showPassword['wa_token'] ? '👁️' : '🙈'}
+                           </button>
+                         </div>
+                       </div>
+                     </div>
+                   </div>
+                )}
+
+                {/* ----------------- MODE 2: WA WEB QR ----------------- */}
+                {waConnectionType === 'web' && (
+                   <div className="space-y-6 animate-fade-in-up">
+                     
+                     <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl flex gap-3 text-sm text-yellow-100">
+                       <span className="text-xl">⚠️</span>
+                       <p><strong>Warning:</strong> WhatsApp Web mode simulates human behavior. Sending too many messages quickly without anti-ban delays may result in number blocking by WhatsApp.</p>
+                     </div>
+
+                     {/* DEVICE LINKING (QR CODE) */}
+                     <div className="bg-[#0f172a] p-6 rounded-xl border border-gray-700 flex flex-col md:flex-row gap-6 items-center">
+                        <div className="flex-1">
+                           <h3 className="text-white font-bold text-lg mb-2">Device Linking</h3>
+                           <p className="text-gray-400 text-xs mb-4">Link your standard WhatsApp or WhatsApp Business app directly to Reachify without any official API approvals.</p>
+                           
+                           <ul className="text-xs text-gray-300 space-y-2 mb-6">
+                              <li>1. Open WhatsApp on your phone</li>
+                              <li>2. Tap Menu (⋮) or Settings</li>
+                              <li>3. Select <strong>Linked Devices</strong></li>
+                              <li>4. Tap on <strong>Link a Device</strong> and point your camera at the QR code.</li>
+                           </ul>
+
+                           {webStatus === 'disconnected' && (
+                             <button onClick={generateQRCode} disabled={isGeneratingQR} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2">
+                                {isGeneratingQR ? <><span className="animate-spin">⏳</span> Generating...</> : '📱 Generate QR Code'}
+                             </button>
+                           )}
+                           
+                           {webStatus === 'connected' && (
+                             <div className="flex gap-3">
+                               <button disabled className="bg-green-600/20 text-green-400 border border-green-500/50 px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 cursor-default">
+                                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Connected
+                               </button>
+                               <button onClick={disconnectWeb} className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-4 py-2.5 rounded-lg font-bold border border-red-500/50 transition-all">
+                                  Logout
+                               </button>
+                             </div>
+                           )}
+                        </div>
+
+                        {/* QR Code Display Area */}
+                        <div className="w-48 h-48 bg-white rounded-xl border-4 border-gray-600 flex items-center justify-center p-2 relative">
+                           {webStatus === 'disconnected' && !isGeneratingQR && (
+                              <span className="text-gray-400 text-center text-xs font-bold px-4">Click "Generate" to show QR Code</span>
+                           )}
+                           {isGeneratingQR && (
+                              <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                           )}
+                           {qrCodeData && webStatus === 'scanning' && (
+                              <>
+                                <img src={qrCodeData} alt="WhatsApp QR" className="w-full h-full object-contain cursor-pointer" onClick={simulateConnection} title="Click to simulate successful scan" />
+                                <div className="absolute inset-0 bg-green-500/20 animate-pulse pointer-events-none rounded-lg"></div>
+                              </>
+                           )}
+                           {webStatus === 'connected' && (
+                              <div className="flex flex-col items-center">
+                                 <span className="text-4xl">✅</span>
+                                 <span className="text-green-600 font-bold text-xs mt-2">Device Linked</span>
+                              </div>
+                           )}
+                        </div>
+                     </div>
+
+                     {/* ANTI-BAN CONTROL PANEL */}
+                     <div className="bg-[#0f172a] p-6 rounded-xl border border-gray-700">
+                        <h3 className="text-white font-bold text-lg mb-1 flex items-center gap-2">🛡️ Anti-Ban Protocol</h3>
+                        <p className="text-gray-400 text-xs mb-6">Control sending speed to mimic human behavior.</p>
+
+                        <div className="grid grid-cols-2 gap-6">
+                           <div>
+                              <label className="text-xs text-gray-400 font-bold mb-1 flex justify-between">Min Delay <span>{settings.anti_ban_min_delay} sec</span></label>
+                              <input type="range" name="anti_ban_min_delay" min="1" max="10" value={settings.anti_ban_min_delay} onChange={handleChange} className="w-full accent-emerald-500" />
+                           </div>
+                           <div>
+                              <label className="text-xs text-gray-400 font-bold mb-1 flex justify-between">Max Delay <span>{settings.anti_ban_max_delay} sec</span></label>
+                              <input type="range" name="anti_ban_max_delay" min="10" max="60" value={settings.anti_ban_max_delay} onChange={handleChange} className="w-full accent-emerald-500" />
+                           </div>
+                        </div>
+                        <p className="text-[10px] text-emerald-400 mt-2 bg-emerald-500/10 p-2 rounded inline-block">
+                           System will pause randomly between {settings.anti_ban_min_delay} to {settings.anti_ban_max_delay} seconds after every message.
+                        </p>
+
+                        <div className="mt-6 pt-6 border-t border-gray-700">
+                           <ToggleSwitch 
+                              name="anti_ban_typing_status" 
+                              checked={settings.anti_ban_typing_status} 
+                              label="Simulate 'Typing...' Status" 
+                              desc="Show typing indicator to the receiver before sending the message to look more authentic."
+                           />
+                        </div>
+                     </div>
+
+                   </div>
+                )}
               </div>
             )}
 
