@@ -22,7 +22,14 @@ const client = new Client({
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process' // Saves RAM on free servers
+            '--single-process', // RAM bachane ke liye sabse zaroori
+            '--disable-gpu',
+            '--disable-software-rasterizer',
+            '--disable-background-networking',
+            '--disable-default-apps',
+            '--disable-extensions',
+            '--mute-audio',
+            '--js-flags="--max-old-space-size=256"' // Node ko bolna ki 256MB se zyada RAM na le
         ] 
     }
 });
