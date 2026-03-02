@@ -52,7 +52,7 @@ const Settings = () => {
   // 🔴 TERA ASLI RENDER SERVER URL
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
 
-  // LOAD SETTINGS
+  // 1. LOAD SETTINGS
   useEffect(() => {
     const savedSettings = localStorage.getItem('reachify_api_settings');
     if (savedSettings) {
@@ -62,9 +62,29 @@ const Settings = () => {
     }
   }, []);
 
-  // 🔄 ADVANCED AUTO-POLLING: Har 3 second me check karega ki QR scan hua ya nahi
+  // 2. 🔄 ADVANCED AUTO-POLLING & INITIAL CHECK
   useEffect(() => {
     let interval;
+    
+    // Page open hote hi pehli baar check karega
+    const checkInitialStatus = async () => {
+      try {
+        const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
+        const data = await res.json();
+        if (data.status === 'connected') {
+           setWebStatus('connected');
+        } else if (data.status === 'scanning' && data.qr) {
+           setWebStatus('scanning');
+           setQrCodeData(data.qr);
+        }
+      } catch(err) { console.log("Engine sleeping"); }
+    };
+
+    if (waConnectionType === 'web' && webStatus === 'disconnected') {
+       checkInitialStatus();
+    }
+
+    // Agar QR screen par hai, toh har 3 sec me check karega ki phone se scan hua ya nahi
     if (webStatus === 'scanning') {
       interval = setInterval(async () => {
         try {
@@ -80,8 +100,9 @@ const Settings = () => {
         }
       }, 3000);
     }
+    
     return () => clearInterval(interval);
-  }, [webStatus]);
+  }, [webStatus, waConnectionType]);
 
   // HANDLE INPUT CHANGES
   const handleChange = (e) => {
@@ -130,7 +151,7 @@ const Settings = () => {
         setQrCodeData(data.qr);
         setWebStatus('scanning');
       } else {
-        alert("⏳ Engine is starting up. Please click generate again in a few seconds.");
+        alert("⏳ Engine is starting up. Please wait 10-15 seconds and click again.");
         setWebStatus('disconnected');
       }
     } catch (err) {
@@ -406,12 +427,14 @@ const Settings = () => {
                            <h3 className="text-white font-bold text-lg mb-2">Device Linking (Advanced)</h3>
                            <p className="text-gray-400 text-xs mb-4">Link your standard WhatsApp or WhatsApp Business app securely. Our engine automatically detects when you scan.</p>
                            
-                           <ul className="text-xs text-gray-300 space-y-2 mb-6">
-                              <li>1. Open WhatsApp on your phone</li>
-                              <li>2. Tap Menu (⋮) or Settings</li>
-                              <li>3. Select <strong>Linked Devices</strong></li>
-                              <li>4. Tap on <strong>Link a Device</strong> and point your camera at the QR code.</li>
-                           </ul>
+                           {webStatus !== 'connected' && (
+                             <ul className="text-xs text-gray-300 space-y-2 mb-6">
+                                <li>1. Open WhatsApp on your phone</li>
+                                <li>2. Tap Menu (⋮) or Settings</li>
+                                <li>3. Select <strong>Linked Devices</strong></li>
+                                <li>4. Tap on <strong>Link a Device</strong> and point your camera at the QR code.</li>
+                             </ul>
+                           )}
 
                            {webStatus === 'disconnected' && (
                              <button onClick={generateQRCode} disabled={isGeneratingQR} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2">
@@ -420,35 +443,59 @@ const Settings = () => {
                            )}
                            
                            {webStatus === 'connected' && (
-                             <div className="flex gap-3">
-                               <button disabled className="bg-green-600/20 text-green-400 border border-green-500/50 px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 cursor-default">
-                                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Connected & Active
-                               </button>
-                               <button onClick={disconnectWeb} className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-4 py-2.5 rounded-lg font-bold border border-red-500/50 transition-all">
-                                  Logout
+                             <div className="mt-4">
+                               <button onClick={disconnectWeb} className="bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white px-6 py-2.5 rounded-lg font-bold border border-red-500/50 transition-all flex items-center gap-2">
+                                  <span>🔌</span> Disconnect WhatsApp
                                </button>
                              </div>
                            )}
                         </div>
 
-                        <div className="w-48 h-48 bg-white rounded-xl border-4 border-gray-600 flex items-center justify-center p-2 relative">
+                        {/* 🌟 WHATSAPP DASHBOARD / QR AREA 🌟 */}
+                        <div className="w-64 h-64 bg-[#111b21] rounded-xl border-4 border-gray-600 flex items-center justify-center p-2 relative overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
+                           
                            {webStatus === 'disconnected' && !isGeneratingQR && (
-                              <span className="text-gray-400 text-center text-xs font-bold px-4">Click "Show" to load QR Code</span>
+                              <div className="text-center">
+                                 <span className="text-4xl block mb-2 opacity-50">📱</span>
+                                 <span className="text-gray-400 text-xs font-bold px-4">Click "Show" to load Engine</span>
+                              </div>
                            )}
+
                            {isGeneratingQR && (
-                              <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-                           )}
-                           {qrCodeData && webStatus === 'scanning' && (
-                              <>
-                                <img src={qrCodeData} alt="WhatsApp QR" className="w-full h-full object-contain" />
-                                <div className="absolute inset-0 bg-emerald-500/10 animate-pulse pointer-events-none rounded-lg"></div>
-                                <div className="absolute -bottom-6 w-full text-center text-[10px] text-emerald-400 font-bold animate-pulse">Waiting for scan...</div>
-                              </>
-                           )}
-                           {webStatus === 'connected' && (
                               <div className="flex flex-col items-center">
-                                 <span className="text-5xl">✅</span>
-                                 <span className="text-green-600 font-bold text-sm mt-2">Device Linked</span>
+                                <div className="w-8 h-8 border-4 border-[#00a884] border-t-transparent rounded-full animate-spin mb-3"></div>
+                                <span className="text-[#00a884] text-xs font-bold animate-pulse">Initializing Browser...</span>
+                              </div>
+                           )}
+
+                           {qrCodeData && webStatus === 'scanning' && (
+                              <div className="w-full h-full p-2 bg-white rounded-lg flex flex-col relative">
+                                <img src={qrCodeData} alt="WhatsApp QR" className="w-full h-full object-contain" />
+                                <div className="absolute inset-0 bg-[#00a884]/10 animate-pulse pointer-events-none rounded-lg"></div>
+                                <div className="absolute -bottom-8 left-0 right-0 text-center text-[10px] text-[#00a884] font-bold animate-bounce">Waiting for scan...</div>
+                              </div>
+                           )}
+
+                           {/* NAYA WHATSAPP VIRTUAL DASHBOARD 🔥 */}
+                           {webStatus === 'connected' && (
+                              <div className="flex flex-col items-center justify-center w-full h-full">
+                                 <div className="w-16 h-16 bg-[#00a884] rounded-full flex items-center justify-center mb-3 shadow-[0_0_20px_rgba(0,168,132,0.4)]">
+                                    <span className="text-3xl text-white">✅</span>
+                                 </div>
+                                 <h4 className="text-white font-bold text-[15px]">WhatsApp Active</h4>
+                                 <p className="text-[#8696a0] text-[10px] text-center mt-1 mb-4 px-2">Ready to send bulk campaigns.</p>
+                                 
+                                 <div className="w-[90%] bg-[#202c33] rounded-lg p-2.5 text-[10px] text-[#8696a0] flex flex-col gap-1.5 border border-gray-700/50">
+                                    <div className="flex justify-between border-b border-gray-700 pb-1">
+                                       <span>Engine:</span> <span className="text-[#00a884] font-bold animate-pulse">Online 🟢</span>
+                                    </div>
+                                    <div className="flex justify-between border-b border-gray-700 pb-1">
+                                       <span>Session:</span> <span className="text-white">Authenticated</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                       <span>Anti-Ban:</span> <span className="text-emerald-400">Active 🛡️</span>
+                                    </div>
+                                 </div>
                               </div>
                            )}
                         </div>
@@ -478,9 +525,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 7. SOCIAL MEDIA API SETTINGS */}
-            {/* ========================================= */}
+            {/* SOCIAL AND EXTRACTORS TABS HIDDEN FOR BREVITY - REST IS THE SAME */}
             {activeTab === 'social' && (
               <div className="space-y-6 animate-fade-in max-w-3xl">
                 <p className="text-sm text-gray-400 bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">Add App Credentials to enable Omni-channel publishing and Birthday tracking.</p>
@@ -539,9 +584,6 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 8. DATA EXTRACTORS & AI */}
-            {/* ========================================= */}
             {activeTab === 'extractors' && (
               <div className="space-y-6 animate-fade-in max-w-2xl">
                 <div>
