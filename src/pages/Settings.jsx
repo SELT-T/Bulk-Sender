@@ -9,47 +9,32 @@ const Settings = () => {
   const [waConnectionType, setWaConnectionType] = useState('api'); // 'api' or 'web'
   const [isGeneratingQR, setIsGeneratingQR] = useState(false);
   const [qrCodeData, setQrCodeData] = useState(null);
-  const [webStatus, setWebStatus] = useState('disconnected'); // disconnected, scanning, connected
+  const [webStatus, setWebStatus] = useState('disconnected'); // disconnected, generating, scanning, connected
 
-  // === GLOBAL SETTINGS STATE (Real Working via LocalStorage) ===
+  // === GLOBAL SETTINGS STATE ===
   const [settings, setSettings] = useState({
-    // Profile
     fullName: 'Demo Admin',
     email: 'demo@reachify.com',
     phone: '',
     companyName: '',
-    
-    // Billing & Payments
     upi_id: '',
     gst_number: '',
     billing_email: '',
-
-    // General & Preferences
     timezone: 'Asia/Kolkata',
     date_format: 'DD/MM/YYYY',
     app_language: 'en',
-    
-    // Display
     theme: 'dark',
     compact_mode: false,
-
-    // Notifications
     notify_email_campaigns: true,
     notify_wa_alerts: false,
     notify_system_updates: true,
-    
-    // WhatsApp Connections
-    wa_connection_mode: 'api', // 'api' or 'web'
-    // 1. API Mode Settings
+    wa_connection_mode: 'api',
     wa_provider: 'evolution',
     wa_instance_id: '',
     wa_access_token: '',
-    // 2. Web Mode Anti-Ban Settings
     anti_ban_min_delay: 5,
     anti_ban_max_delay: 15,
     anti_ban_typing_status: true,
-    
-    // Social Media APIs
     fb_app_id: '',
     fb_app_secret: '',
     ig_access_token: '',
@@ -57,17 +42,15 @@ const Settings = () => {
     x_api_secret: '',
     li_client_id: '',
     li_client_secret: '',
-    
-    // Data Extractors (GMap)
     gmaps_api_key: '',
-    
-    // AI Configuration
     ai_provider: 'openai',
     ai_api_key: '',
     ai_max_tokens: '2000'
   });
 
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
+  // 🔴 TERA ASLI RENDER SERVER URL
+  const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
 
   // LOAD SETTINGS
   useEffect(() => {
@@ -78,6 +61,27 @@ const Settings = () => {
       if(parsed.wa_connection_mode) setWaConnectionType(parsed.wa_connection_mode);
     }
   }, []);
+
+  // 🔄 ADVANCED AUTO-POLLING: Har 3 second me check karega ki QR scan hua ya nahi
+  useEffect(() => {
+    let interval;
+    if (webStatus === 'scanning') {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
+          const data = await res.json();
+          if (data.status === 'connected') {
+            setWebStatus('connected');
+            setQrCodeData(null);
+            clearInterval(interval);
+          }
+        } catch (error) {
+          console.error("Polling error", error);
+        }
+      }, 3000);
+    }
+    return () => clearInterval(interval);
+  }, [webStatus]);
 
   // HANDLE INPUT CHANGES
   const handleChange = (e) => {
@@ -100,43 +104,53 @@ const Settings = () => {
     localStorage.setItem('reachify_api_settings', JSON.stringify(settings));
 
     try {
-      const res = await fetch(`${API_URL}/update-settings`, {
+      await fetch(`${API_URL}/update-settings`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings)
       });
-      setTimeout(() => {
-        setIsSaving(false);
-        alert("✅ Settings Saved Successfully! Preferences updated.");
-      }, 800);
+      setTimeout(() => { setIsSaving(false); alert("✅ Settings Saved Successfully!"); }, 800);
     } catch (error) {
-      setTimeout(() => {
-        setIsSaving(false);
-        alert("✅ Settings Saved Locally!");
-      }, 800);
+      setTimeout(() => { setIsSaving(false); alert("✅ Settings Saved Locally!"); }, 800);
     }
   };
 
-  // 🚀 FAKE QR GENERATOR FOR NOW (Will be replaced by real backend websocket)
-  const generateQRCode = () => {
+  // 🚀 100% REAL QR GENERATOR (Connects to Render Node.js Server)
+  const generateQRCode = async () => {
     setIsGeneratingQR(true);
-    setWebStatus('scanning');
     setQrCodeData(null);
-    
-    // Simulate fetching QR from bailey/whatsapp-web.js backend
-    setTimeout(() => {
-      // Dummy base64 QR image for UI presentation
-      setQrCodeData("https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/QR_code_for_mobile_English_Wikipedia.svg/1200px-QR_code_for_mobile_English_Wikipedia.svg.png");
-      setIsGeneratingQR(false);
-    }, 2000);
+    setWebStatus('generating');
+
+    try {
+      const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
+      const data = await res.json();
+
+      if (data.status === 'connected') {
+        setWebStatus('connected');
+        alert("✅ WhatsApp is already linked to the Engine!");
+      } else if (data.status === 'scanning' && data.qr) {
+        setQrCodeData(data.qr);
+        setWebStatus('scanning');
+      } else {
+        alert("⏳ Engine is starting up. Please click generate again in a few seconds.");
+        setWebStatus('disconnected');
+      }
+    } catch (err) {
+      alert("⏳ Server is waking up from sleep mode. Please wait 30 seconds and try again.");
+      setWebStatus('disconnected');
+    }
+    setIsGeneratingQR(false);
   };
 
-  const simulateConnection = () => {
-    setWebStatus('connected');
-    alert("✅ WhatsApp Web Linked Successfully!");
-  };
-
-  const disconnectWeb = () => {
-    setWebStatus('disconnected');
-    setQrCodeData(null);
+  // 🔴 REAL LOGOUT FUNCTION
+  const disconnectWeb = async () => {
+    if(window.confirm("Are you sure you want to unlink your WhatsApp device?")) {
+        try {
+           await fetch(`${WA_ENGINE_URL}/api/wa-logout`, { method: 'POST' });
+           setWebStatus('disconnected');
+           setQrCodeData(null);
+        } catch (err) {
+           alert("Failed to disconnect from server.");
+        }
+    }
   };
 
   // --- UI MENU CONFIG ---
@@ -153,7 +167,6 @@ const Settings = () => {
     { id: 'ai', label: 'AI Models (LLM)', icon: '🤖', category: 'API INTEGRATIONS' }
   ];
 
-  // Custom Toggle Switch Component
   const ToggleSwitch = ({ name, checked, label, desc }) => (
     <div className="flex items-center justify-between bg-[#0f172a] p-4 rounded-xl border border-gray-700">
       <div>
@@ -220,9 +233,6 @@ const Settings = () => {
 
           <div className="flex-1 p-6 overflow-y-auto custom-scrollbar bg-gradient-to-b from-[#1e293b] to-[#0f172a]">
             
-            {/* ========================================= */}
-            {/* 1. PROFILE SETTINGS */}
-            {/* ========================================= */}
             {activeTab === 'profile' && (
               <div className="space-y-6 animate-fade-in max-w-3xl">
                 <div className="flex items-center gap-6 mb-8 bg-[#0f172a] p-6 rounded-2xl border border-gray-700">
@@ -257,13 +267,8 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 2. SUBSCRIPTION & BILLING */}
-            {/* ========================================= */}
             {activeTab === 'billing' && (
               <div className="space-y-6 animate-fade-in max-w-3xl">
-                
-                {/* Active Plan Card */}
                 <div className="bg-gradient-to-r from-indigo-900 to-fuchsia-900 border border-fuchsia-500/50 p-6 rounded-2xl shadow-xl relative overflow-hidden">
                    <div className="absolute top-0 right-0 p-4 opacity-20"><span className="text-8xl">👑</span></div>
                    <h3 className="text-fuchsia-300 font-bold text-sm tracking-widest uppercase mb-1">Current Plan</h3>
@@ -295,9 +300,6 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 3. GENERAL SETTINGS */}
-            {/* ========================================= */}
             {activeTab === 'general' && (
               <div className="space-y-6 animate-fade-in max-w-2xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -330,9 +332,6 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 4. DISPLAY SETTINGS */}
-            {/* ========================================= */}
             {activeTab === 'display' && (
               <div className="space-y-6 animate-fade-in max-w-2xl">
                  <div>
@@ -349,72 +348,31 @@ const Settings = () => {
                        </div>
                     </div>
                  </div>
-
-                 <ToggleSwitch 
-                    name="compact_mode" 
-                    checked={settings.compact_mode} 
-                    label="Compact UI Mode" 
-                    desc="Reduce padding and margins to fit more data on the screen."
-                 />
+                 <ToggleSwitch name="compact_mode" checked={settings.compact_mode} label="Compact UI Mode" desc="Reduce padding and margins to fit more data on the screen." />
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 5. NOTIFICATIONS */}
-            {/* ========================================= */}
             {activeTab === 'notifications' && (
               <div className="space-y-4 animate-fade-in max-w-2xl">
-                 <ToggleSwitch 
-                    name="notify_email_campaigns" 
-                    checked={settings.notify_email_campaigns} 
-                    label="Campaign Completion Emails" 
-                    desc="Receive a summary email when a bulk blast finishes."
-                 />
-                 <ToggleSwitch 
-                    name="notify_wa_alerts" 
-                    checked={settings.notify_wa_alerts} 
-                    label="WhatsApp Lead Alerts" 
-                    desc="Get a ping on your connected WhatsApp when a new lead replies."
-                 />
-                 <ToggleSwitch 
-                    name="notify_system_updates" 
-                    checked={settings.notify_system_updates} 
-                    label="System & Feature Updates" 
-                    desc="Notifications about new tools, patches, and AI models."
-                 />
+                 <ToggleSwitch name="notify_email_campaigns" checked={settings.notify_email_campaigns} label="Campaign Completion Emails" desc="Receive a summary email when a bulk blast finishes." />
+                 <ToggleSwitch name="notify_wa_alerts" checked={settings.notify_wa_alerts} label="WhatsApp Lead Alerts" desc="Get a ping on your connected WhatsApp when a new lead replies." />
+                 <ToggleSwitch name="notify_system_updates" checked={settings.notify_system_updates} label="System & Feature Updates" desc="Notifications about new tools, patches, and AI models." />
               </div>
             )}
 
             {/* ========================================= */}
-            {/* 6. WHATSAPP ENGINE SETTINGS */}
+            {/* 6. WHATSAPP CONNECTION (ADVANCED) */}
             {/* ========================================= */}
             {activeTab === 'whatsapp' && (
               <div className="space-y-6 animate-fade-in max-w-3xl">
                 
-                {/* Connection Mode Toggle */}
                 <div className="bg-[#0f172a] p-1.5 rounded-xl border border-gray-700 flex w-full">
-                   <button 
-                     onClick={() => handleModeChange('api')}
-                     className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${waConnectionType === 'api' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
-                   >
-                     ☁️ Official Cloud API (Tokens)
-                   </button>
-                   <button 
-                     onClick={() => handleModeChange('web')}
-                     className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${waConnectionType === 'web' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
-                   >
-                     📱 WhatsApp Web (QR Scanner)
-                   </button>
+                   <button onClick={() => handleModeChange('api')} className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${waConnectionType === 'api' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}>☁️ Official Cloud API (Tokens)</button>
+                   <button onClick={() => handleModeChange('web')} className={`flex-1 py-3 text-sm font-bold rounded-lg transition-all ${waConnectionType === 'web' ? 'bg-emerald-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}>📱 WhatsApp Web (QR Scanner)</button>
                 </div>
 
-                {/* ----------------- MODE 1: CLOUD API ----------------- */}
                 {waConnectionType === 'api' && (
                    <div className="space-y-6 animate-fade-in-up">
-                     <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-xl flex gap-3 text-sm text-emerald-100">
-                       <span className="text-xl">ℹ️</span>
-                       <p>Use Meta Cloud API or Third-Party Gateways (Evolution/WAPI). Best for verified numbers and high-volume official messaging.</p>
-                     </div>
-
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#0f172a] p-6 rounded-xl border border-gray-700">
                        <div>
                          <label className="text-xs text-gray-400 font-bold mb-1 block">Gateway Provider</label>
@@ -441,20 +399,12 @@ const Settings = () => {
                    </div>
                 )}
 
-                {/* ----------------- MODE 2: WA WEB QR ----------------- */}
                 {waConnectionType === 'web' && (
                    <div className="space-y-6 animate-fade-in-up">
-                     
-                     <div className="bg-yellow-500/10 border border-yellow-500/30 p-4 rounded-xl flex gap-3 text-sm text-yellow-100">
-                       <span className="text-xl">⚠️</span>
-                       <p><strong>Warning:</strong> WhatsApp Web mode simulates human behavior. Sending too many messages quickly without anti-ban delays may result in number blocking by WhatsApp.</p>
-                     </div>
-
-                     {/* DEVICE LINKING (QR CODE) */}
                      <div className="bg-[#0f172a] p-6 rounded-xl border border-gray-700 flex flex-col md:flex-row gap-6 items-center">
                         <div className="flex-1">
-                           <h3 className="text-white font-bold text-lg mb-2">Device Linking</h3>
-                           <p className="text-gray-400 text-xs mb-4">Link your standard WhatsApp or WhatsApp Business app directly to Reachify without any official API approvals.</p>
+                           <h3 className="text-white font-bold text-lg mb-2">Device Linking (Advanced)</h3>
+                           <p className="text-gray-400 text-xs mb-4">Link your standard WhatsApp or WhatsApp Business app securely. Our engine automatically detects when you scan.</p>
                            
                            <ul className="text-xs text-gray-300 space-y-2 mb-6">
                               <li>1. Open WhatsApp on your phone</li>
@@ -465,14 +415,14 @@ const Settings = () => {
 
                            {webStatus === 'disconnected' && (
                              <button onClick={generateQRCode} disabled={isGeneratingQR} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg transition-all flex items-center gap-2">
-                                {isGeneratingQR ? <><span className="animate-spin">⏳</span> Generating...</> : '📱 Generate QR Code'}
+                                {isGeneratingQR ? <><span className="animate-spin">⏳</span> Connecting to Engine...</> : '📱 Show Real QR Code'}
                              </button>
                            )}
                            
                            {webStatus === 'connected' && (
                              <div className="flex gap-3">
                                <button disabled className="bg-green-600/20 text-green-400 border border-green-500/50 px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 cursor-default">
-                                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Connected
+                                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Connected & Active
                                </button>
                                <button onClick={disconnectWeb} className="bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white px-4 py-2.5 rounded-lg font-bold border border-red-500/50 transition-all">
                                   Logout
@@ -481,33 +431,32 @@ const Settings = () => {
                            )}
                         </div>
 
-                        {/* QR Code Display Area */}
                         <div className="w-48 h-48 bg-white rounded-xl border-4 border-gray-600 flex items-center justify-center p-2 relative">
                            {webStatus === 'disconnected' && !isGeneratingQR && (
-                              <span className="text-gray-400 text-center text-xs font-bold px-4">Click "Generate" to show QR Code</span>
+                              <span className="text-gray-400 text-center text-xs font-bold px-4">Click "Show" to load QR Code</span>
                            )}
                            {isGeneratingQR && (
                               <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                            )}
                            {qrCodeData && webStatus === 'scanning' && (
                               <>
-                                <img src={qrCodeData} alt="WhatsApp QR" className="w-full h-full object-contain cursor-pointer" onClick={simulateConnection} title="Click to simulate successful scan" />
-                                <div className="absolute inset-0 bg-green-500/20 animate-pulse pointer-events-none rounded-lg"></div>
+                                <img src={qrCodeData} alt="WhatsApp QR" className="w-full h-full object-contain" />
+                                <div className="absolute inset-0 bg-emerald-500/10 animate-pulse pointer-events-none rounded-lg"></div>
+                                <div className="absolute -bottom-6 w-full text-center text-[10px] text-emerald-400 font-bold animate-pulse">Waiting for scan...</div>
                               </>
                            )}
                            {webStatus === 'connected' && (
                               <div className="flex flex-col items-center">
-                                 <span className="text-4xl">✅</span>
-                                 <span className="text-green-600 font-bold text-xs mt-2">Device Linked</span>
+                                 <span className="text-5xl">✅</span>
+                                 <span className="text-green-600 font-bold text-sm mt-2">Device Linked</span>
                               </div>
                            )}
                         </div>
                      </div>
 
-                     {/* ANTI-BAN CONTROL PANEL */}
                      <div className="bg-[#0f172a] p-6 rounded-xl border border-gray-700">
                         <h3 className="text-white font-bold text-lg mb-1 flex items-center gap-2">🛡️ Anti-Ban Protocol</h3>
-                        <p className="text-gray-400 text-xs mb-6">Control sending speed to mimic human behavior.</p>
+                        <p className="text-gray-400 text-xs mb-6">Control sending speed to mimic human behavior and avoid Meta bans.</p>
 
                         <div className="grid grid-cols-2 gap-6">
                            <div>
@@ -519,20 +468,11 @@ const Settings = () => {
                               <input type="range" name="anti_ban_max_delay" min="10" max="60" value={settings.anti_ban_max_delay} onChange={handleChange} className="w-full accent-emerald-500" />
                            </div>
                         </div>
-                        <p className="text-[10px] text-emerald-400 mt-2 bg-emerald-500/10 p-2 rounded inline-block">
-                           System will pause randomly between {settings.anti_ban_min_delay} to {settings.anti_ban_max_delay} seconds after every message.
-                        </p>
-
+                        
                         <div className="mt-6 pt-6 border-t border-gray-700">
-                           <ToggleSwitch 
-                              name="anti_ban_typing_status" 
-                              checked={settings.anti_ban_typing_status} 
-                              label="Simulate 'Typing...' Status" 
-                              desc="Show typing indicator to the receiver before sending the message to look more authentic."
-                           />
+                           <ToggleSwitch name="anti_ban_typing_status" checked={settings.anti_ban_typing_status} label="Simulate 'Typing...' Status" desc="Show typing indicator to the receiver before sending the message to look more authentic." />
                         </div>
                      </div>
-
                    </div>
                 )}
               </div>
@@ -545,7 +485,6 @@ const Settings = () => {
               <div className="space-y-6 animate-fade-in max-w-3xl">
                 <p className="text-sm text-gray-400 bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl">Add App Credentials to enable Omni-channel publishing and Birthday tracking.</p>
 
-                {/* FB & Insta Group */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="bg-[#0f172a] p-5 rounded-2xl border border-gray-700 shadow-md">
                     <h4 className="text-blue-400 font-bold flex items-center gap-2 mb-4"><span>📘</span> Facebook Graph API</h4>
@@ -597,7 +536,6 @@ const Settings = () => {
                     </div>
                   </div>
                 </div>
-
               </div>
             )}
 
