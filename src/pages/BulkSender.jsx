@@ -43,22 +43,22 @@ const BulkSender = () => {
   const imageContainerRef = useRef(null);
   
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
-  const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; // Render URL Added
+  const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user'));
 
-  // 0. REAL WHATSAPP CONNECTION CHECK (FIXED)
+  // 0. REAL WHATSAPP CONNECTION CHECK & ANTI-SLEEP PING (FIXED)
   useEffect(() => {
+    let interval;
+    
     const checkRealConnection = async () => {
       if (!user) return setWaStatus('disconnected');
       
-      // Check which mode the user selected in Settings
       const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
       const mode = savedSettings.wa_connection_mode || 'api';
       setConnectionMode(mode);
 
       try {
         if (mode === 'web') {
-           // Check Baileys Render Engine Status
            const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
            const data = await res.json();
            if (data.status === 'connected') {
@@ -67,7 +67,6 @@ const BulkSender = () => {
              setWaStatus('disconnected');
            }
         } else {
-           // Check Meta API Cloud Status
            const res = await fetch(`${API_URL}/get-settings`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
@@ -84,7 +83,22 @@ const BulkSender = () => {
         setWaStatus('disconnected');
       }
     };
+    
+    // Initial Check
     checkRealConnection();
+
+    // 🛡️ FRONTEND ANTI-SLEEP LOGIC (FIXED):
+    // Ye har 1 minute me ek halka request bhejega taki Render soche PC active hai.
+    interval = setInterval(() => {
+        // Sirf tabhi ping karo jab Web Mode ho taaki Cloudflare API par load na pade
+        const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+        if (savedSettings.wa_connection_mode === 'web') {
+            fetch(`${WA_ENGINE_URL}/`).catch(() => {}); // Sirf root route ko ping karo, status route ko nahi
+            console.log("pinging render server to keep it awake");
+        }
+    }, 60000); 
+
+    return () => clearInterval(interval);
   }, [user]);
 
   // 1. Handle ANY Media/File Upload
@@ -211,7 +225,7 @@ const BulkSender = () => {
     }
   };
 
-  // 4. CAMPAIGN CONTROLS (FIXED ROUTING LOGIC)
+  // 4. CAMPAIGN CONTROLS
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
     if (waStatus !== 'connected') return alert("❌ WhatsApp is NOT connected. Please link in Settings first.");
