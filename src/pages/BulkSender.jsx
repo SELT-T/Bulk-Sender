@@ -5,7 +5,7 @@ const BulkSender = () => {
   // --- States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
-  const [countryCode, setCountryCode] = useState('91'); // NAYA: Country code state
+  const [countryCode, setCountryCode] = useState('91'); 
   
   const [message, setMessage] = useState("Hello {{Name}}, here is your file!");
   const [file, setFile] = useState(null); 
@@ -14,6 +14,7 @@ const BulkSender = () => {
   
   // --- Real WhatsApp Status State ---
   const [waStatus, setWaStatus] = useState('checking'); 
+  const [connectionMode, setConnectionMode] = useState('api'); // 'web' or 'api'
   
   // --- PRO Sticker States ---
   const [showSticker, setShowSticker] = useState(false);
@@ -40,24 +41,44 @@ const BulkSender = () => {
   const pauseRef = useRef(false);
   const stopRef = useRef(false);
   const imageContainerRef = useRef(null);
+  
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
+  const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; // Render URL Added
   const user = JSON.parse(localStorage.getItem('reachify_user'));
 
-  // 0. REAL WHATSAPP CONNECTION CHECK
+  // 0. REAL WHATSAPP CONNECTION CHECK (FIXED)
   useEffect(() => {
     const checkRealConnection = async () => {
       if (!user) return setWaStatus('disconnected');
+      
+      // Check which mode the user selected in Settings
+      const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+      const mode = savedSettings.wa_connection_mode || 'api';
+      setConnectionMode(mode);
+
       try {
-        const res = await fetch(`${API_URL}/get-settings`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: user.email })
-        });
-        const data = await res.json();
-        if (data.instance_id && data.access_token) {
-          setWaStatus('connected');
+        if (mode === 'web') {
+           // Check Baileys Render Engine Status
+           const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
+           const data = await res.json();
+           if (data.status === 'connected') {
+             setWaStatus('connected');
+           } else {
+             setWaStatus('disconnected');
+           }
         } else {
-          setWaStatus('disconnected');
+           // Check Meta API Cloud Status
+           const res = await fetch(`${API_URL}/get-settings`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ email: user.email })
+           });
+           const data = await res.json();
+           if (data.instance_id && data.access_token) {
+             setWaStatus('connected');
+           } else {
+             setWaStatus('disconnected');
+           }
         }
       } catch (err) {
         setWaStatus('disconnected');
@@ -136,7 +157,7 @@ const BulkSender = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
-  // 🚀 NAYA FEATURE: BULK COUNTRY CODE ADDER
+  // BULK COUNTRY CODE ADDER
   const applyCountryCode = () => {
     if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
     
@@ -190,10 +211,10 @@ const BulkSender = () => {
     }
   };
 
-  // 4. CAMPAIGN CONTROLS
+  // 4. CAMPAIGN CONTROLS (FIXED ROUTING LOGIC)
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
-    if (waStatus !== 'connected') return alert("❌ WhatsApp is NOT connected. Please link API in Settings first.");
+    if (waStatus !== 'connected') return alert("❌ WhatsApp is NOT connected. Please link in Settings first.");
     
     setCampaignState('running');
     pauseRef.current = false;
@@ -218,20 +239,37 @@ const BulkSender = () => {
       setLogs(prev => [newLog, ...prev]);
 
       try {
-        const res = await fetch(`${API_URL}/send-message`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: user?.email || 'demo@reachify.com',
-            phone: contact.phone,
-            message: personalizedMsg,
-            media_type: media?.type || 'text',
-            sticker_config: (showSticker && media?.type.startsWith('image')) ? {
-              name_text: contact.name, sub_text: subText, color: stickerColor, bg_color: stickerBgColor,
-              font: fontFamily, width: stickerWidth, border: stickerBorder, x: stickerPos.x, y: stickerPos.y
-            } : null
-          })
-        });
+        let res;
+
+        // 🟢 IF WEB MODE (Render Baileys Engine)
+        if (connectionMode === 'web') {
+           res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               target: contact.phone,
+               text: personalizedMsg,
+               isGroup: false
+             })
+           });
+        } 
+        // 🔵 IF API MODE (Cloudflare Meta API)
+        else {
+           res = await fetch(`${API_URL}/send-message`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               email: user?.email || 'demo@reachify.com',
+               phone: contact.phone,
+               message: personalizedMsg,
+               media_type: media?.type || 'text',
+               sticker_config: (showSticker && media?.type.startsWith('image')) ? {
+                 name_text: contact.name, sub_text: subText, color: stickerColor, bg_color: stickerBgColor,
+                 font: fontFamily, width: stickerWidth, border: stickerBorder, x: stickerPos.x, y: stickerPos.y
+               } : null
+             })
+           });
+        }
 
         if (res.ok) {
           currentSent++;
@@ -276,7 +314,7 @@ const BulkSender = () => {
              {waStatus === 'checking' && <span className="text-xs text-gray-400">Checking connection...</span>}
              {waStatus === 'connected' && (
                 <span className="flex items-center gap-1.5 px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-xs text-green-400">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> API Connected
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> {connectionMode === 'web' ? 'Web Connected' : 'API Connected'}
                 </span>
              )}
              {waStatus === 'disconnected' && (
@@ -343,7 +381,7 @@ const BulkSender = () => {
               <p className="text-xs text-gray-300">{file ? file.name : "Upload Excel File"}</p>
             </div>
 
-            {/* 🚀 CONTACT LIST PREVIEW & COUNTRY CODE TOOL */}
+            {/* CONTACT LIST PREVIEW & COUNTRY CODE TOOL */}
             {contacts.length > 0 && (
               <div className="mt-4 animate-fade-in-up">
                 <div className="flex justify-between items-center mb-3 bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
