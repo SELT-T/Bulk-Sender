@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+// NAYA: 'Browsers' import kiya hai Meta ki security bypass karne ke liye
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const pino = require('pino'); 
 const fs = require('fs');
@@ -11,17 +12,14 @@ app.use(express.json({ limit: '50mb' }));
 
 let sock = null;
 let qrCodeBase64 = null;
-let waStatus = 'disconnected'; // disconnected, generating, scanning, connected
+let waStatus = 'disconnected'; 
 
-// 🚀 AUTO-WAKEUP FUNCTION (Ye engine ko kabhi marne nahi dega)
 async function connectToWhatsApp() {
-    // Agar pehle se chal raha hai toh dobara start mat karo
-    if (waStatus === 'generating' || waStatus === 'scanning' || waStatus === 'connected') {
-        return; 
-    }
+    // Agar pehle se chal raha hai toh naya connection mat banao
+    if (waStatus === 'scanning' || waStatus === 'connected') return;
     
     waStatus = 'generating';
-    console.log("🚀 Starting Baileys Engine...");
+    console.log("🚀 Starting Lightweight Baileys Engine...");
 
     try {
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
@@ -29,27 +27,31 @@ async function connectToWhatsApp() {
         sock = makeWASocket({
             auth: state,
             printQRInTerminal: true,
-            browser: ["Reachify Pro", "Chrome", "1.0.0"], 
-            logger: pino({ level: "silent" }) // Faltu logs band kiye hain
+            // 🔴 SABSE BADA FIX: Meta ko lagega ye asli Apple Mac computer hai, isliye turant QR dega
+            browser: Browsers.macOS('Desktop'), 
+            syncFullHistory: false, // RAM aur Speed bachane ke liye (No crashing)
+            logger: pino({ level: "silent" }) 
         });
 
         sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
             
             if (qr) {
-                console.log('🟢 New QR Code Generated!');
+                console.log('🟢 New QR Code Received from Meta!');
                 qrCodeBase64 = await qrcode.toDataURL(qr);
                 waStatus = 'scanning';
             }
             
             if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect.error)?.output?.statusCode !== DisconnectReason.loggedOut;
+                const statusCode = (lastDisconnect.error)?.output?.statusCode;
+                const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+                
                 if (shouldReconnect) {
-                    console.log("⚠️ Connection broken. Reconnecting automatically...");
+                    console.log("⚠️ Connection dropped. Reconnecting...");
                     waStatus = 'disconnected';
                     setTimeout(connectToWhatsApp, 2000); 
                 } else {
-                    console.log("🛑 Logged out completely by user.");
+                    console.log("🛑 Logged out completely.");
                     waStatus = 'disconnected';
                     qrCodeBase64 = null;
                     if (fs.existsSync('auth_info_baileys')) {
@@ -70,21 +72,19 @@ async function connectToWhatsApp() {
     }
 }
 
-// Pehli baar server start hone par chalega
 connectToWhatsApp();
 
 // =========================================================
-// API ENDPOINTS (Tere Frontend ke liye)
+// API ENDPOINTS
 // =========================================================
 
 app.get('/', (req, res) => {
-    res.send("🚀 Reachify Immortal Engine is Running!");
+    res.send("🚀 Reachify Bulletproof Engine is Running!");
 });
 
-// 🔴 THE MAGIC ROUTE: Agar server soya hai, toh ye usko jaga dega!
 app.get('/api/wa-status', (req, res) => {
+    // Agar frontend request kare aur engine soya ho, toh jagao
     if (waStatus === 'disconnected' || !sock) {
-        console.log("🔄 Frontend requested QR, waking up Engine...");
         connectToWhatsApp();
     }
     res.json({ status: waStatus, qr: qrCodeBase64 });
@@ -92,9 +92,7 @@ app.get('/api/wa-status', (req, res) => {
 
 app.post('/api/wa-logout', async (req, res) => {
     try {
-        if (sock) {
-            await sock.logout();
-        }
+        if (sock) await sock.logout();
         waStatus = 'disconnected';
         qrCodeBase64 = null;
         if (fs.existsSync('auth_info_baileys')) {
@@ -112,7 +110,6 @@ app.post('/api/wa-send', async (req, res) => {
     if (waStatus !== 'connected' || !sock) {
         return res.status(400).json({ error: "WhatsApp is not connected." });
     }
-
     try {
         const { target, text, isGroup } = req.body;
         let jid = target.replace(/[^0-9]/g, '');
@@ -120,7 +117,6 @@ app.post('/api/wa-send', async (req, res) => {
 
         await sock.sendMessage(jid, { text: text });
         res.json({ success: true, message: "Message sent successfully!" });
-
     } catch (err) {
         console.error("Send Error:", err);
         res.status(500).json({ error: "Failed to send message: " + err.message });
