@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-// NAYA: 'Browsers' import kiya hai Meta ki security bypass karne ke liye
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers } = require('@whiskeysockets/baileys');
+// NAYA FIX: fetchLatestBaileysVersion import kiya hai
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const pino = require('pino'); 
 const fs = require('fs');
@@ -15,21 +15,24 @@ let qrCodeBase64 = null;
 let waStatus = 'disconnected'; 
 
 async function connectToWhatsApp() {
-    // Agar pehle se chal raha hai toh naya connection mat banao
     if (waStatus === 'scanning' || waStatus === 'connected') return;
     
     waStatus = 'generating';
     console.log("🚀 Starting Lightweight Baileys Engine...");
 
     try {
+        // 🔥 SABSE BADA FIX: Ye line WhatsApp ka current version fetch karegi jisse server hang nahi hoga
+        const { version, isLatest } = await fetchLatestBaileysVersion();
+        console.log(`Using WhatsApp v${version.join('.')}, isLatest: ${isLatest}`);
+
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
         
         sock = makeWASocket({
+            version, // Latest version apply kar diya
             auth: state,
             printQRInTerminal: true,
-            // 🔴 SABSE BADA FIX: Meta ko lagega ye asli Apple Mac computer hai, isliye turant QR dega
-            browser: Browsers.macOS('Desktop'), 
-            syncFullHistory: false, // RAM aur Speed bachane ke liye (No crashing)
+            browser: Browsers.macOS('Desktop'), // Meta ko lagega ye asli Mac hai
+            syncFullHistory: false, // RAM bachane ke liye
             logger: pino({ level: "silent" }) 
         });
 
@@ -74,16 +77,9 @@ async function connectToWhatsApp() {
 
 connectToWhatsApp();
 
-// =========================================================
-// API ENDPOINTS
-// =========================================================
-
-app.get('/', (req, res) => {
-    res.send("🚀 Reachify Bulletproof Engine is Running!");
-});
+app.get('/', (req, res) => { res.send("🚀 Reachify Bulletproof Engine is Running!"); });
 
 app.get('/api/wa-status', (req, res) => {
-    // Agar frontend request kare aur engine soya ho, toh jagao
     if (waStatus === 'disconnected' || !sock) {
         connectToWhatsApp();
     }
@@ -124,6 +120,4 @@ app.post('/api/wa-send', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-    console.log(`🚀 Reachify Light Engine running on port ${PORT}`);
-});
+app.listen(PORT, () => { console.log(`🚀 Engine running on port ${PORT}`); });
