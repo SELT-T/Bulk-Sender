@@ -7,8 +7,10 @@ const fs = require('fs');
 
 const app = express();
 app.use(cors({ origin: '*' })); 
-// 🔥 FIX: File size limit ko 50mb kar diya taaki badi files aaram se aa sakein
-app.use(express.json({ limit: '50mb' }));
+
+// 🔥 BADI FILES KE LIYE LIMIT BADHA DI (100MB)
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
 let sock = null;
 let qrCodeBase64 = null;
@@ -16,6 +18,7 @@ let waStatus = 'disconnected';
 
 async function connectToWhatsApp() {
     if (waStatus === 'scanning' || waStatus === 'connected') return;
+    
     waStatus = 'generating';
     console.log("🚀 Starting Lightweight Baileys Engine...");
 
@@ -91,31 +94,27 @@ app.post('/api/wa-send', async (req, res) => {
     if (waStatus !== 'connected' || !sock) return res.status(400).json({ error: "WhatsApp not connected." });
     
     try {
-        // Frontend se file aur text dono accept kar rahe hain
         const { target, text, isGroup, mediaBase64, mediaType, fileName } = req.body;
         let jid = target.replace(/[^0-9]/g, '');
         jid = isGroup ? `${jid}@g.us` : `${jid}@s.whatsapp.net`;
 
         let msgPayload = {};
 
-        // Agar koi file aayi hai toh usko convert karo
+        // Agar File aayi hai toh buffer banakar attach karo
         if (mediaBase64) {
-            const base64Data = mediaBase64.split(';base64,').pop();
+            const base64Data = mediaBase64.includes(';base64,') ? mediaBase64.split(';base64,').pop() : mediaBase64;
             const buffer = Buffer.from(base64Data, 'base64');
-            
-            // Check file type and send accordingly
+
             if (mediaType && mediaType.startsWith('image/')) {
-                msgPayload = { image: buffer, caption: text };
+                msgPayload = { image: buffer, caption: text || '' };
             } else if (mediaType && mediaType.startsWith('video/')) {
-                msgPayload = { video: buffer, caption: text };
-            } else if (mediaType && mediaType.startsWith('audio/')) {
-                msgPayload = { document: buffer, mimetype: mediaType, fileName: fileName || 'audio', caption: text }; 
+                msgPayload = { video: buffer, caption: text || '' };
             } else {
-                msgPayload = { document: buffer, mimetype: mediaType || 'application/octet-stream', fileName: fileName || 'file', caption: text };
+                msgPayload = { document: buffer, mimetype: mediaType || 'application/octet-stream', fileName: fileName || 'Document', caption: text || '' };
             }
         } else {
-            // Agar file nahi hai toh purane system ki tarah sirf text bhejo
-            msgPayload = { text: text };
+            // Sirf text hai toh normal bhejo
+            msgPayload = { text: text || '' };
         }
 
         await sock.sendMessage(jid, msgPayload);
