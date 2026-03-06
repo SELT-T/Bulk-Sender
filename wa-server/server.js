@@ -7,6 +7,7 @@ const fs = require('fs');
 
 const app = express();
 app.use(cors({ origin: '*' })); 
+// 🔥 FIX: File size limit ko 50mb kar diya taaki badi files aaram se aa sakein
 app.use(express.json({ limit: '50mb' }));
 
 let sock = null;
@@ -15,12 +16,11 @@ let waStatus = 'disconnected';
 
 async function connectToWhatsApp() {
     if (waStatus === 'scanning' || waStatus === 'connected') return;
-    
     waStatus = 'generating';
     console.log("🚀 Starting Lightweight Baileys Engine...");
 
     try {
-        const { version, isLatest } = await fetchLatestBaileysVersion();
+        const { version } = await fetchLatestBaileysVersion();
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
         
         sock = makeWASocket({
@@ -86,15 +86,42 @@ app.post('/api/wa-logout', async (req, res) => {
     }
 });
 
+// 🟢 🔥 MEDIA SENDER FIX YAHAN HAI 🔥 🟢
 app.post('/api/wa-send', async (req, res) => {
     if (waStatus !== 'connected' || !sock) return res.status(400).json({ error: "WhatsApp not connected." });
+    
     try {
-        const { target, text, isGroup } = req.body;
+        // Frontend se file aur text dono accept kar rahe hain
+        const { target, text, isGroup, mediaBase64, mediaType, fileName } = req.body;
         let jid = target.replace(/[^0-9]/g, '');
         jid = isGroup ? `${jid}@g.us` : `${jid}@s.whatsapp.net`;
-        await sock.sendMessage(jid, { text: text });
+
+        let msgPayload = {};
+
+        // Agar koi file aayi hai toh usko convert karo
+        if (mediaBase64) {
+            const base64Data = mediaBase64.split(';base64,').pop();
+            const buffer = Buffer.from(base64Data, 'base64');
+            
+            // Check file type and send accordingly
+            if (mediaType && mediaType.startsWith('image/')) {
+                msgPayload = { image: buffer, caption: text };
+            } else if (mediaType && mediaType.startsWith('video/')) {
+                msgPayload = { video: buffer, caption: text };
+            } else if (mediaType && mediaType.startsWith('audio/')) {
+                msgPayload = { document: buffer, mimetype: mediaType, fileName: fileName || 'audio', caption: text }; 
+            } else {
+                msgPayload = { document: buffer, mimetype: mediaType || 'application/octet-stream', fileName: fileName || 'file', caption: text };
+            }
+        } else {
+            // Agar file nahi hai toh purane system ki tarah sirf text bhejo
+            msgPayload = { text: text };
+        }
+
+        await sock.sendMessage(jid, msgPayload);
         res.json({ success: true });
     } catch (err) {
+        console.log("Send Error:", err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -102,11 +129,8 @@ app.post('/api/wa-send', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => { console.log(`🚀 Engine running on port ${PORT}`); });
 
-// =========================================================
-// 🛡️ ANTI-SLEEP SYSTEM (SERVER KO SONE NAHI DEGA)
-// =========================================================
+// Anti-Sleep System
 const ENGINE_URL = "https://reachify-wa-engine.onrender.com";
 setInterval(() => {
     fetch(ENGINE_URL).catch(() => {});
-    console.log("💓 Heartbeat sent. Server kept awake.");
-}, 8 * 60 * 1000); // Har 8 minute me khud ko ping karega
+}, 8 * 60 * 1000);
