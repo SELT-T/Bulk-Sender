@@ -79,7 +79,7 @@ const Settings = () => {
     }
   }, []);
 
-  // 🔄 AUTO-POLLING FOR WHATSAPP STATUS
+  // 🔄 AUTO-POLLING FOR WHATSAPP STATUS (FIXED LOGIC)
   useEffect(() => {
     let interval;
     const fetchStatus = async () => {
@@ -90,31 +90,43 @@ const Settings = () => {
         if (data.status === 'connected') {
            setWebStatus('connected');
            setQrCodeData(null);
+           setIsGeneratingQR(false); // Scanning complete hone par loader band
            setLiveLog('✅ Device linked securely. Engine is ready.');
         } 
         else if (data.status === 'scanning') {
            if (data.qr) {
               setWebStatus('scanning');
               setQrCodeData(data.qr);
+              setIsGeneratingQR(false); // QR aate hi loader band
               setLiveLog('⏳ Scan this QR quickly! (Do not delay)');
            } else {
               setWebStatus('authenticating');
               setQrCodeData(null);
+              setIsGeneratingQR(false); 
               setLiveLog('🔄 Scan successful! Authenticating and syncing chats...');
            }
         }
         else {
-           setWebStatus('disconnected');
-           setQrCodeData(null);
-           setLiveLog('❌ Engine disconnected. Click Refresh to get new QR.');
+           // 🔴 IMPORTANT FIX: Agar backend disconnected bol raha hai par hum UI me "generating" state me hain, toh use wahi rehne do! Disconnect mat karo!
+           if (webStatus !== 'generating') {
+               setWebStatus('disconnected');
+               setQrCodeData(null);
+               setIsGeneratingQR(false);
+               setLiveLog('❌ Engine disconnected. Click Generate to get new QR.');
+           }
         }
       } catch(err) { 
-        setLiveLog('⚠️ Waiting for server to wake up...'); 
+        if (webStatus === 'generating') {
+           setLiveLog('⚠️ Waking up Render server from deep sleep... please wait (takes up to 50s).'); 
+        } else {
+           setLiveLog('⚠️ Waiting for server to wake up...'); 
+        }
       }
     };
 
     if (waConnectionType === 'web' && webStatus === 'disconnected') fetchStatus();
 
+    // Jab tak status generating/scanning/authenticating hai, ye loop baar baar check karega
     if (webStatus === 'scanning' || webStatus === 'authenticating' || webStatus === 'generating') {
       interval = setInterval(() => fetchStatus(), 3000);
     }
@@ -151,33 +163,20 @@ const Settings = () => {
     }
   };
 
-  // 🚀 GENERATE OR REFRESH QR
+  // 🚀 GENERATE OR REFRESH QR (FIXED LOGIC)
   const generateQRCode = async () => {
-    setIsGeneratingQR(true);
-    setWebStatus('generating');
-    setLiveLog('⏳ Requesting fresh QR Code from Engine...');
+    setIsGeneratingQR(true); 
+    setWebStatus('generating'); // Is state se humara useEffect wala polling loop chalu ho jayega
+    setLiveLog('⏳ Requesting fresh QR Code... Waking up Engine (takes 20-50s)...');
     setQrCodeData(null);
 
     try {
-      const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
-      const data = await res.json();
-
-      if (data.status === 'connected') {
-        setWebStatus('connected');
-        setLiveLog('✅ Already connected.');
-      } else if (data.status === 'scanning' && data.qr) {
-        setQrCodeData(data.qr);
-        setWebStatus('scanning');
-        setLiveLog('🟢 Fresh QR loaded. Scan immediately!');
-      } else {
-        setLiveLog('⏳ Engine starting... wait 10 seconds.');
-        setWebStatus('disconnected');
-      }
+      // Yahan hum sirf server ko ek "knock" (ping) kar rahe hain taaki wo jaag jaye.
+      // QR set karne ka kaam niche loop (useEffect) apne aap karega jab QR aayega.
+      await fetch(`${WA_ENGINE_URL}/api/wa-status`);
     } catch (err) {
-      setLiveLog('⚠️ Server waking up. Wait 30s and retry.');
-      setWebStatus('disconnected');
+      setLiveLog('⚠️ Server is sleeping. Waking it up, please keep waiting...');
     }
-    setIsGeneratingQR(false);
   };
 
   // 🛑 FORCE RESET ENGINE
@@ -187,6 +186,7 @@ const Settings = () => {
         await fetch(`${WA_ENGINE_URL}/api/wa-logout`, { method: 'POST' });
         setWebStatus('disconnected');
         setQrCodeData(null);
+        setIsGeneratingQR(false);
         setLiveLog('❌ Engine Reset successfully. Click Generate QR to start fresh.');
     } catch (err) {
         setLiveLog('⚠️ Failed to reach server for reset.');
@@ -471,7 +471,7 @@ const Settings = () => {
                            <h3 className="text-white font-bold text-lg mb-2">Device Linking</h3>
                            <p className="text-gray-400 text-xs mb-4">Click "Refresh QR Code" if your code expires or says "Couldn't link device".</p>
                            
-                           {/* 🔴 ALWAYS SHOW ACTION BUTTONS NOW */}
+                           {/* ACTION BUTTONS */}
                            <div className="mt-4 flex flex-col gap-3">
                               {webStatus !== 'connected' ? (
                                 <button onClick={generateQRCode} disabled={isGeneratingQR} className="bg-emerald-600 hover:bg-emerald-500 text-white px-6 py-3 rounded-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2 w-full max-w-[250px]">
@@ -483,7 +483,6 @@ const Settings = () => {
                                 </button>
                               )}
 
-                              {/* FORCE RESET BUTTON */}
                               <button onClick={disconnectWeb} className="bg-gray-800 text-red-400 hover:bg-red-500 hover:text-white px-6 py-2.5 rounded-lg font-bold border border-gray-700 hover:border-red-500 transition-all flex items-center justify-center gap-2 w-full max-w-[250px]">
                                  <span>🛑</span> Force Reset Engine
                               </button>
