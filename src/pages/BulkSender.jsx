@@ -46,7 +46,7 @@ const BulkSender = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user'));
 
-  // 0. REAL WHATSAPP CONNECTION CHECK & ANTI-SLEEP PING (FIXED)
+  // 0. REAL WHATSAPP CONNECTION CHECK & ANTI-SLEEP PING
   useEffect(() => {
     let interval;
     
@@ -84,17 +84,13 @@ const BulkSender = () => {
       }
     };
     
-    // Initial Check
     checkRealConnection();
 
-    // 🛡️ FRONTEND ANTI-SLEEP LOGIC (FIXED):
-    // Ye har 1 minute me ek halka request bhejega taki Render soche PC active hai.
+    // FRONTEND ANTI-SLEEP
     interval = setInterval(() => {
-        // Sirf tabhi ping karo jab Web Mode ho taaki Cloudflare API par load na pade
         const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
         if (savedSettings.wa_connection_mode === 'web') {
-            fetch(`${WA_ENGINE_URL}/`).catch(() => {}); // Sirf root route ko ping karo, status route ko nahi
-            console.log("pinging render server to keep it awake");
+            fetch(`${WA_ENGINE_URL}/`).catch(() => {}); 
         }
     }, 60000); 
 
@@ -225,7 +221,7 @@ const BulkSender = () => {
     }
   };
 
-  // 4. CAMPAIGN CONTROLS
+  // 4. CAMPAIGN CONTROLS (WITH MEDIA SUPPORT)
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
     if (waStatus !== 'connected') return alert("❌ WhatsApp is NOT connected. Please link in Settings first.");
@@ -237,6 +233,28 @@ const BulkSender = () => {
     setProgress(0);
     let currentSent = 0;
     let currentFailed = 0;
+
+    // 🔥 PREPARE MEDIA FILE AS BASE64 BEFORE SENDING LOOP 🔥
+    let base64MediaData = null;
+    let mimeType = null;
+    let originalFileName = null;
+
+    if (media) {
+       try {
+          const reader = new FileReader();
+          base64MediaData = await new Promise((resolve, reject) => {
+              reader.readAsDataURL(media);
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = error => reject(error);
+          });
+          mimeType = media.type;
+          originalFileName = media.name;
+       } catch (e) {
+          alert("❌ Error processing the media file.");
+          setCampaignState('stopped');
+          return;
+       }
+    }
 
     for (let i = 0; i < contacts.length; i++) {
       if (stopRef.current) { setCampaignState('stopped'); break; }
@@ -263,7 +281,10 @@ const BulkSender = () => {
              body: JSON.stringify({
                target: contact.phone,
                text: personalizedMsg,
-               isGroup: false
+               isGroup: false,
+               mediaBase64: base64MediaData, // Media Payload
+               mediaType: mimeType,
+               fileName: originalFileName
              })
            });
         } 
