@@ -8,7 +8,7 @@ const fs = require('fs');
 const app = express();
 app.use(cors({ origin: '*' })); 
 
-// 🔥 BADI FILES KE LIYE LIMIT 100MB KAR DI
+// 🔥 BADI FILES KE LIYE LIMIT BADHAI
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
@@ -18,6 +18,7 @@ let waStatus = 'disconnected';
 
 async function connectToWhatsApp() {
     if (waStatus === 'scanning' || waStatus === 'connected') return;
+    
     waStatus = 'generating';
     console.log("🚀 Starting Lightweight Baileys Engine...");
 
@@ -83,22 +84,36 @@ app.post('/api/wa-logout', async (req, res) => {
         if (fs.existsSync('auth_info_baileys')) fs.rmSync('auth_info_baileys', { recursive: true, force: true });
         res.json({ success: true });
     } catch (err) {
+        waStatus = 'disconnected';
         res.status(500).json({ error: err.message });
     }
 });
 
-// 🟢 🔥 MEDIA SENDER WITH PERFECT BASE64 HANDLING 🔥 🟢
+// 🟢 🔥 100% PERFECT SENDER & NUMBER VERIFICATION 🔥 🟢
 app.post('/api/wa-send', async (req, res) => {
-    if (waStatus !== 'connected' || !sock) return res.status(400).json({ error: "WhatsApp not connected." });
+    // Check if socket is actually alive
+    if (waStatus !== 'connected' || !sock || !sock.user) {
+        return res.status(400).json({ error: "WhatsApp Engine is disconnected. Please scan QR again." });
+    }
     
     try {
         const { target, text, isGroup, mediaBase64, mediaType, fileName } = req.body;
         let jid = target.replace(/[^0-9]/g, '');
-        jid = isGroup ? `${jid}@g.us` : `${jid}@s.whatsapp.net`;
+
+        // 🛡️ BHEJNE SE PEHLE WHATSAPP PAR NUMBER CHECK KARO
+        if (!isGroup) {
+            const [waResult] = await sock.onWhatsApp(jid);
+            if (!waResult) {
+                return res.status(404).json({ error: "Number is not on WhatsApp" });
+            }
+            jid = waResult.jid; // Meta ka exact ID use karo
+        } else {
+            jid = `${jid}@g.us`;
+        }
 
         let msgPayload = {};
 
-        // Agar koi file/image aayi hai toh usko buffer me convert karo
+        // Agar File aayi hai toh process karo
         if (mediaBase64) {
             const base64Data = mediaBase64.includes(';base64,') ? mediaBase64.split(';base64,').pop() : mediaBase64;
             const buffer = Buffer.from(base64Data, 'base64');
@@ -108,10 +123,9 @@ app.post('/api/wa-send', async (req, res) => {
             } else if (mediaType && mediaType.startsWith('video/')) {
                 msgPayload = { video: buffer, caption: text || '' };
             } else {
-                msgPayload = { document: buffer, mimetype: mediaType || 'application/octet-stream', fileName: fileName || 'Document', caption: text || '' };
+                msgPayload = { document: buffer, mimetype: mediaType || 'application/pdf', fileName: fileName || 'Document', caption: text || '' };
             }
         } else {
-            // Agar file nahi hai toh sirf text bhejo
             msgPayload = { text: text || '' };
         }
 
@@ -126,4 +140,5 @@ app.post('/api/wa-send', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => { console.log(`🚀 Engine running on port ${PORT}`); });
 
+// Anti-Sleep System
 setInterval(() => { fetch("https://reachify-wa-engine.onrender.com").catch(() => {}); }, 8 * 60 * 1000);
