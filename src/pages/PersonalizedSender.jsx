@@ -7,6 +7,9 @@ const PersonalizedSender = () => {
   const [showContactPreview, setShowContactPreview] = useState(false);
   const [countryCode, setCountryCode] = useState('91'); 
   
+  // 🟢 NAYA FEATURE: Caption Message State
+  const [message, setMessage] = useState("Hello {{Name}}, \n\nHere is your personalized invite!");
+  
   const [mediaPreview, setMediaPreview] = useState(null);
   const [mediaFile, setMediaFile] = useState(null);
   const [waStatus, setWaStatus] = useState('checking'); 
@@ -134,6 +137,7 @@ const PersonalizedSender = () => {
     if (file && file.type.startsWith('image/')) {
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
+      setShowSticker(true); // Automatically turn on sticker when image is uploaded
     } else {
       alert("❌ Pro Studio only accepts Image files (.jpg, .png).");
     }
@@ -228,7 +232,6 @@ const PersonalizedSender = () => {
     }
   };
 
-  // 🔥 CORE FIX: THE CANVAS RENDERER 🔥
   const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -299,7 +302,7 @@ const PersonalizedSender = () => {
                 ctx.fillText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
             }
 
-            // Draw Main Name Text (on top)
+            // Draw Main Name Text
             ctx.fillStyle = nameColor;
             ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
             
@@ -326,7 +329,6 @@ const PersonalizedSender = () => {
     setCampaignState('running'); stopRef.current = false; setLogs([]); setProgress(0);
     let currentSent = 0, currentFailed = 0;
 
-    // 🔥 1. FILE KO BASE64 MEIN CONVERT KARO 🔥
     let rawBase64MediaData = null;
     let mimeType = null;
     let originalFileName = null;
@@ -349,13 +351,20 @@ const PersonalizedSender = () => {
     for (let i = 0; i < contacts.length; i++) {
       if (stopRef.current) { setCampaignState('stopped'); break; }
       const contact = contacts[i];
+      
+      // 🟢 CAPTION (MESSAGE) ME NAAM REPLACE KARO
+      const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
+
       setLogs(prev => [{ id: i + 1, to: contact.phone, status: "Sending..." }, ...prev]);
 
       try {
         let res;
 
-        // 🔥 2. CUSTOM STICKER KE SATH FINAL FILE BANAO 🔥
-        let finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
+        // Custom Sticker ke sath Image Ready karo
+        let finalMediaToSend = rawBase64MediaData;
+        if (connectionMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
+            finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
+        }
 
         if (connectionMode === 'web') {
            res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
@@ -363,7 +372,7 @@ const PersonalizedSender = () => {
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
                target: contact.phone,
-               text: "", // No caption for Studio images usually, unless you want to add a state for it
+               text: personalizedMsg, // 🟢 CAPTION AB YAHAN SE BHI JAYEGA
                isGroup: false,
                mediaBase64: finalMediaToSend, 
                mediaType: mimeType,           
@@ -372,13 +381,13 @@ const PersonalizedSender = () => {
            });
         } else {
            const payload = {
-             email: user.email, phone: contact.phone, message: "Here is your invite!", media_type: 'image',
-             sticker_config: { 
+             email: user.email, phone: contact.phone, message: personalizedMsg, media_type: 'image',
+             sticker_config: (showSticker && mediaFile?.type.startsWith('image')) ? { 
                  name: { text: contact.name, font: nameFont, size: nameSize, color: nameColor, outline: nameOutline, weight: nameWeight, style: nameStyle },
                  sub: { text: subText, font: subFont, size: subSize, color: subColor, outline: subOutline, weight: subWeight, style: subStyle },
                  box: { bg: boxBg, border: boxBorder, radius: boxRadius, padding: boxPadding, width: stickerWidth },
                  x: stickerPos.x, y: stickerPos.y 
-             }
+             } : null
            };
            res = await fetch(`${API_URL}/send-message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         }
@@ -508,8 +517,7 @@ const PersonalizedSender = () => {
 
            {/* Step 3: THE ULTIMATE STYLING ENGINE */}
            {mediaPreview && (
-             <div className="bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex-1 flex flex-col overflow-hidden">
-               
+             <div className="bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col overflow-hidden max-h-[300px]">
                {/* TABS */}
                <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
                   <button onClick={()=>setActiveTab('name')} className={`flex-1 py-2 text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name Tag</button>
@@ -519,7 +527,6 @@ const PersonalizedSender = () => {
 
                {/* TAB CONTENTS */}
                <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
-                 
                   {/* --- NAME TAB --- */}
                   {activeTab === 'name' && (
                      <div className="space-y-4 animate-fade-in">
@@ -527,7 +534,6 @@ const PersonalizedSender = () => {
                           <label className="text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
                           <input type="range" min="12" max="72" value={nameSize} onChange={e=>setNameSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
                         </div>
-                        
                         <div className="grid grid-cols-2 gap-3">
                            <div>
                              <label className="text-[10px] text-gray-400 block mb-1">Font Family</label>
@@ -543,7 +549,6 @@ const PersonalizedSender = () => {
                              </div>
                            </div>
                         </div>
-
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="text-[10px] text-gray-400 block mb-1">Text Color</label>
@@ -566,12 +571,10 @@ const PersonalizedSender = () => {
                           <label className="text-[10px] text-gray-400 block mb-1">Sub-Text Content</label>
                           <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none focus:border-fuchsia-500"/>
                         </div>
-
                         <div>
                           <label className="text-[10px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
                           <input type="range" min="10" max="48" value={subSize} onChange={e=>setSubSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
                         </div>
-                        
                         <div className="grid grid-cols-2 gap-3">
                            <div>
                              <label className="text-[10px] text-gray-400 block mb-1">Font Family</label>
@@ -587,7 +590,6 @@ const PersonalizedSender = () => {
                              </div>
                            </div>
                         </div>
-
                         <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="text-[10px] text-gray-400 block mb-1">Text Color</label>
@@ -628,7 +630,6 @@ const PersonalizedSender = () => {
                             </select>
                           </div>
                         </div>
-
                         <div>
                           <label className="text-[10px] text-gray-400 flex justify-between">Corner Sharpness (Radius) <span>{boxRadius}px</span></label>
                           <input type="range" min="0" max="50" value={boxRadius} onChange={e=>setBoxRadius(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
@@ -642,6 +643,20 @@ const PersonalizedSender = () => {
                </div>
              </div>
            )}
+
+           {/* 🟢 NEW STEP: IMAGE CAPTION BOX 🟢 */}
+           <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 mt-auto">
+             <h3 className="text-white font-bold text-[11px] mb-2 flex justify-between">
+                4. Image Caption (Message)
+             </h3>
+             <textarea 
+               value={message}
+               onChange={(e) => setMessage(e.target.value)}
+               className="w-full h-[60px] bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-xs text-white outline-none focus:border-fuchsia-500 resize-none custom-scrollbar"
+               placeholder="Type your caption here... Use {{Name}} to personalize."
+             ></textarea>
+           </div>
+
         </div>
 
         {/* CENTER: THE PRO CANVAS */}
@@ -656,48 +671,50 @@ const PersonalizedSender = () => {
                  <img src={mediaPreview} alt="Base" className="max-w-full max-h-[70vh] object-contain pointer-events-none" />
 
                  {/* ADVANCED STICKER ELEMENT */}
-                 <div 
-                   onMouseDown={handleDragStart} onTouchStart={handleDragStart}
-                   style={{ 
-                     top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, 
-                     transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab',
-                     background: boxBg, border: boxBorder, borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
-                     backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
-                   }}
-                   className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
-                 >
-                   {/* DYNAMIC LINE 1: NAME */}
-                   <div 
-                     style={{ 
-                        color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
-                        WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
-                        textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
-                        lineHeight: '1.2'
-                     }}
-                     className="text-center w-full break-words"
-                   >
-                      {nameText}
-                   </div>
-                   
-                   {/* DYNAMIC LINE 2: SUB-TEXT */}
-                   {subText && (
+                 {showSticker && (
                      <div 
+                       onMouseDown={handleDragStart} onTouchStart={handleDragStart}
                        style={{ 
-                          color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
-                          WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
-                          marginTop: '4px', lineHeight: '1.2'
+                         top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, 
+                         transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab',
+                         background: boxBg, border: boxBorder, borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
+                         backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
                        }}
-                       className="text-center w-full break-words opacity-90"
+                       className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
                      >
-                        {subText}
+                       {/* DYNAMIC LINE 1: NAME */}
+                       <div 
+                         style={{ 
+                            color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
+                            WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
+                            textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
+                            lineHeight: '1.2'
+                         }}
+                         className="text-center w-full break-words"
+                       >
+                          {nameText}
+                       </div>
+                       
+                       {/* DYNAMIC LINE 2: SUB-TEXT */}
+                       {subText && (
+                         <div 
+                           style={{ 
+                              color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
+                              WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
+                              marginTop: '4px', lineHeight: '1.2'
+                           }}
+                           className="text-center w-full break-words opacity-90"
+                         >
+                            {subText}
+                         </div>
+                       )}
+                       
+                       {/* RESIZE DOT */}
+                       <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-6 h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-0 group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30">
+                         <span className="text-[10px] text-fuchsia-600">⤡</span>
+                       </div>
                      </div>
-                   )}
-                   
-                   {/* RESIZE DOT */}
-                   <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-6 h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-0 group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30">
-                     <span className="text-[10px] text-fuchsia-600">⤡</span>
-                   </div>
-                 </div>
+                 )}
                </div>
              ) : (
                <div className="text-gray-600 text-center flex flex-col items-center">
