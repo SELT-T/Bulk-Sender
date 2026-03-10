@@ -2,21 +2,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const BulkSender = () => {
-  // --- States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
   const [countryCode, setCountryCode] = useState('91'); 
-  
   const [message, setMessage] = useState("Hello {{Name}}, here is your file!");
   const [file, setFile] = useState(null); 
   const [media, setMedia] = useState(null); 
   const [mediaPreview, setMediaPreview] = useState(null);
   
-  // --- Real WhatsApp Status State ---
   const [waStatus, setWaStatus] = useState('checking'); 
-  const [connectionMode, setConnectionMode] = useState('api'); // 'web' or 'api'
+  const [connectionMode, setConnectionMode] = useState('api');
   
-  // --- PRO Sticker States ---
   const [showSticker, setShowSticker] = useState(false);
   const [stickerText, setStickerText] = useState("{{Name}}");
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
@@ -24,14 +20,11 @@ const BulkSender = () => {
   const [stickerBgColor, setStickerBgColor] = useState("rgba(0, 0, 0, 0.4)"); 
   const [stickerBorder, setStickerBorder] = useState("none"); 
   const [fontFamily, setFontFamily] = useState("Arial, sans-serif");
-  
   const [stickerPos, setStickerPos] = useState({ x: 50, y: 50 }); 
   const [stickerWidth, setStickerWidth] = useState(250); 
-  
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   
-  // --- Campaign Control States ---
   const [campaignState, setCampaignState] = useState('idle'); 
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
@@ -46,12 +39,10 @@ const BulkSender = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user'));
 
-  // 0. REAL WHATSAPP CONNECTION CHECK & ANTI-SLEEP PING
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
       if (!user) return setWaStatus('disconnected');
-      
       const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
       const mode = savedSettings.wa_connection_mode || 'api';
       setConnectionMode(mode);
@@ -76,7 +67,6 @@ const BulkSender = () => {
     };
     checkRealConnection();
 
-    // FRONTEND ANTI-SLEEP: Keep server awake
     interval = setInterval(() => {
         const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
         if (savedSettings.wa_connection_mode === 'web') fetch(`${WA_ENGINE_URL}/`).catch(() => {}); 
@@ -85,7 +75,6 @@ const BulkSender = () => {
     return () => clearInterval(interval);
   }, [user]);
 
-  // 1. Handle ANY Media/File Upload
   const handleMediaUpload = (e) => {
     const uploadedFile = e.target.files[0];
     if (uploadedFile) {
@@ -100,7 +89,6 @@ const BulkSender = () => {
     }
   };
 
-  // 2. Smart Excel Scanner
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
     if (!uploadedFile) return;
@@ -129,7 +117,6 @@ const BulkSender = () => {
               if (nameVal === 'Guest' && row[key]) nameVal = String(row[key]).trim();
             }
           });
-
           if (!phoneVal) {
              keys.forEach(key => {
                 const val = String(row[key]).trim();
@@ -165,7 +152,6 @@ const BulkSender = () => {
     alert(`✅ Success! Country Code (+${code}) added to all numbers.`);
   };
 
-  // 3. DRAG & RESIZE LOGIC
   const handleDragStart = (e) => { if(!isResizing) setIsDragging(true); };
   const handleResizeStart = (e) => { e.stopPropagation(); setIsResizing(true); };
   const handleMouseUp = () => { setIsDragging(false); setIsResizing(false); };
@@ -187,7 +173,6 @@ const BulkSender = () => {
     }
   };
 
-  // 🎨 SMART CANVAS ENGINE: Har user ke liye naya Naam likhkar Image banayega!
   const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -199,7 +184,6 @@ const BulkSender = () => {
             const ctx = canvas.getContext('2d');
 
             ctx.drawImage(img, 0, 0, img.width, img.height);
-
             const containerWidth = imageContainerRef.current ? imageContainerRef.current.offsetWidth : 400;
             const scale = img.width / containerWidth;
 
@@ -247,18 +231,17 @@ const BulkSender = () => {
                 ctx.font = `normal ${fontSize2}px ${fontFamily}`;
                 ctx.fillText(subTextStr, x, y + fontSize1/2 + pad/2);
             }
-
-            resolve(canvas.toDataURL('image/jpeg', 0.9));
+            // Use 0.8 quality to slightly compress image and ensure fast delivery
+            resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
         img.onerror = () => resolve(rawBase64); 
         img.src = rawBase64;
     });
   };
 
-  // 4. CAMPAIGN CONTROLS (WITH PROPER FILE HANDLING)
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
-    if (waStatus !== 'connected') return alert("❌ WhatsApp is NOT connected. Please link in Settings first.");
+    if (waStatus !== 'connected') return alert("❌ WhatsApp is NOT connected.");
     
     setCampaignState('running');
     pauseRef.current = false;
@@ -268,7 +251,9 @@ const BulkSender = () => {
     let currentSent = 0;
     let currentFailed = 0;
 
-    // 🔥 1. FILE KO BASE64 MEIN CONVERT KARO 🔥
+    // 🔥 DYNAMIC ROUTING LOCK (Ye hamesha exact pata karega kon sa mode hai)
+    const currentMode = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}').wa_connection_mode || 'api';
+
     let rawBase64MediaData = null;
     let mimeType = null;
     let originalFileName = null;
@@ -306,15 +291,13 @@ const BulkSender = () => {
 
       try {
         let res;
-
-        // 🔥 2. CUSTOM STICKER KE SATH FINAL FILE BANAO 🔥
+        
         let finalMediaToSend = rawBase64MediaData;
-        if (connectionMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
+        if (currentMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
         }
 
-        // 🟢 IF WEB MODE (Render Baileys Engine)
-        if (connectionMode === 'web') {
+        if (currentMode === 'web') {
            res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
@@ -322,30 +305,32 @@ const BulkSender = () => {
                target: contact.phone,
                text: personalizedMsg,
                isGroup: false,
-               mediaBase64: finalMediaToSend, // 👈 MERA FIX YAHAN HAI (Ab File Jaa Rahi Hai!)
-               mediaType: mimeType,           // 👈 TYPE BHI JAA RAHA HAI
-               fileName: originalFileName     // 👈 FILE NAME BHI JAA RAHA HAI
+               mediaBase64: finalMediaToSend, 
+               mediaType: mimeType,           
+               fileName: originalFileName     
              })
            });
-        } 
-        // 🔵 IF API MODE (Cloudflare Meta API)
-        else {
+        } else {
            res = await fetch(`${API_URL}/send-message`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({ email: user?.email || 'demo@reachify.com', phone: contact.phone, message: personalizedMsg, media_type: media?.type || 'text', sticker_config: (showSticker && media?.type.startsWith('image')) ? { name_text: contact.name, sub_text: subText, color: stickerColor, bg_color: stickerBgColor, font: fontFamily, width: stickerWidth, border: stickerBorder, x: stickerPos.x, y: stickerPos.y } : null })
            });
         }
 
-        if (res.ok) {
+        const data = await res.json(); // 🔴 READ EXACT ERROR MESSAGE FROM SERVER
+
+        if (res.ok && data.success) {
           currentSent++;
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
           currentFailed++;
-          setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "❌ Failed" } : l));
+          // Ab screen par exact error dikhega (Jaise: "Number not on WhatsApp")
+          const errorMsg = data.error ? data.error.substring(0, 20) : "Failed";
+          setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
         }
       } catch (err) {
         currentFailed++;
-        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
+        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Server Error" } : l));
       }
       
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
