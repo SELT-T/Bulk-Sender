@@ -5,11 +5,12 @@ const PersonalizedSender = () => {
   // --- States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
-  const [countryCode, setCountryCode] = useState('91'); // Naya feature state
+  const [countryCode, setCountryCode] = useState('91'); 
   
   const [mediaPreview, setMediaPreview] = useState(null);
   const [mediaFile, setMediaFile] = useState(null);
   const [waStatus, setWaStatus] = useState('checking'); 
+  const [connectionMode, setConnectionMode] = useState('api');
   
   // --- STUDIO STATES ---
   const [activeTab, setActiveTab] = useState('name');
@@ -54,6 +55,7 @@ const PersonalizedSender = () => {
   const imageContainerRef = useRef(null);
   const stopRef = useRef(false);
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
+  const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
   // FONT OPTIONS
@@ -65,7 +67,10 @@ const PersonalizedSender = () => {
     { label: "Heavy (Impact)", value: "'Impact', sans-serif" },
     { label: "Clean (Verdana)", value: "Verdana, sans-serif" },
     { label: "Round (Comic Sans)", value: "'Comic Sans MS', cursive" },
-    { label: "Stylish Script", value: "'Brush Script MT', cursive" }
+    { label: "Stylish Script", value: "'Brush Script MT', cursive" },
+    { label: "Devanagari (Mukta)", value: "'Mukta', sans-serif" },
+    { label: "Devanagari (Kalam)", value: "'Kalam', cursive" },
+    { label: "Devanagari (Poppins)", value: "'Poppins', sans-serif" }
   ];
 
   const outlineOptions = [
@@ -79,17 +84,48 @@ const PersonalizedSender = () => {
 
   // 0. REAL API CHECK
   useEffect(() => {
-    const checkApi = async () => {
+    let interval;
+    const checkRealConnection = async () => {
+      if (!user) return setWaStatus('disconnected');
+      
+      const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+      const mode = savedSettings.wa_connection_mode || 'api';
+      setConnectionMode(mode);
+
       try {
-        const res = await fetch(`${API_URL}/get-settings`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
-        });
-        const data = await res.json();
-        if (data.instance_id && data.access_token) setWaStatus('connected');
-        else setWaStatus('disconnected');
-      } catch (err) { setWaStatus('disconnected'); }
+        if (mode === 'web') {
+           const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
+           const data = await res.json();
+           if (data.status === 'connected') {
+               setWaStatus('connected');
+           } else {
+               setWaStatus('disconnected');
+           }
+        } else {
+           const res = await fetch(`${API_URL}/get-settings`, {
+             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
+           });
+           const data = await res.json();
+           if (data.instance_id && data.access_token) {
+               setWaStatus('connected');
+           } else {
+               setWaStatus('disconnected');
+           }
+        }
+      } catch (err) {
+        setWaStatus('sleeping');
+      }
     };
-    checkApi();
+    
+    checkRealConnection();
+
+    interval = setInterval(() => {
+        checkRealConnection();
+        const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+        if (savedSettings.wa_connection_mode === 'web') fetch(`${WA_ENGINE_URL}/`).catch(() => {});
+    }, 20000); 
+
+    return () => clearInterval(interval);
   }, [user.email]);
 
   // 1. Media Upload
@@ -149,24 +185,20 @@ const PersonalizedSender = () => {
     reader.readAsBinaryString(file);
   };
 
-  // 🚀 NAYA FEATURE: BULK COUNTRY CODE ADDER
+  // BULK COUNTRY CODE ADDER
   const applyCountryCode = () => {
     if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
     
     const code = countryCode.replace('+', '').trim();
     
     const updatedContacts = contacts.map(c => {
-      let phone = String(c.phone).replace(/\D/g, ''); // Sirf number rakho, special characters hatao
-      
-      // Agar number sirf 10 digit ka hai (Jaise India me hota hai), toh aage code laga do
+      let phone = String(c.phone).replace(/\D/g, ''); 
       if (phone.length === 10) {
         phone = code + phone;
       } 
-      // Agar 11 digit ka hai aur 0 se shuru hota hai, toh 0 hata kar code lagao
       else if (phone.length === 11 && phone.startsWith('0')) {
         phone = code + phone.substring(1);
       }
-      
       return { ...c, phone: phone };
     });
 
@@ -196,36 +228,180 @@ const PersonalizedSender = () => {
     }
   };
 
+  // 🔥 CORE FIX: THE CANVAS RENDERER 🔥
+  const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+
+            ctx.drawImage(img, 0, 0, img.width, img.height);
+            const containerWidth = imageContainerRef.current ? imageContainerRef.current.offsetWidth : 400;
+            const scale = img.width / containerWidth;
+
+            const x = (stickerPos.x / 100) * img.width;
+            const y = (stickerPos.y / 100) * img.height;
+
+            const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
+            const subTextStr = subText || '';
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            const dynamicNameSize = Math.max(nameSize * scale * (stickerWidth/320), 16);
+            const dynamicSubSize = Math.max(subSize * scale * (stickerWidth/320), 10);
+            const dynamicPadding = boxPadding * scale;
+            const dynamicRadius = boxRadius * scale;
+
+            ctx.font = `${nameWeight} ${dynamicNameSize}px ${nameFont}`;
+            const tWidth1 = ctx.measureText(textStr).width;
+            ctx.font = `${subWeight} ${dynamicSubSize}px ${subFont}`;
+            const tWidth2 = subTextStr ? ctx.measureText(subTextStr).width : 0;
+
+            const boxW = Math.max(tWidth1, tWidth2) + (dynamicPadding * 4);
+            const boxH = subTextStr ? (dynamicNameSize + dynamicSubSize + (dynamicPadding * 3)) : (dynamicNameSize + (dynamicPadding * 2));
+
+            // Draw Background Box
+            if (boxBg && boxBg !== 'transparent') {
+                ctx.fillStyle = boxBg;
+                ctx.beginPath();
+                ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                ctx.fill();
+            }
+
+            // Draw Border
+            if (boxBorder && boxBorder !== 'none') {
+                if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
+                else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
+                else if (boxBorder.includes('black')) ctx.strokeStyle = 'black';
+                else ctx.strokeStyle = 'white';
+                ctx.lineWidth = 3 * scale;
+                if (boxBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
+                ctx.beginPath();
+                ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+
+            // Draw Sub Text
+            if (subTextStr) {
+                ctx.fillStyle = subColor;
+                ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
+                if (subOutline !== 'none') {
+                   ctx.strokeStyle = subOutline;
+                   ctx.lineWidth = 2 * scale;
+                   ctx.strokeText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
+                }
+                ctx.fillText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
+            }
+
+            // Draw Main Name Text (on top)
+            ctx.fillStyle = nameColor;
+            ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
+            
+            if (nameOutline !== 'none') {
+                ctx.strokeStyle = nameOutline;
+                ctx.lineWidth = 3 * scale;
+                ctx.strokeText(textStr, x, subTextStr ? y - dynamicSubSize/2 : y);
+            }
+            ctx.fillText(textStr, x, subTextStr ? y - dynamicSubSize/2 : y);
+
+            resolve(canvas.toDataURL('image/jpeg', 0.8)); // Compressed slightly for fast delivery
+        };
+        img.onerror = () => resolve(rawBase64); 
+        img.src = rawBase64;
+    });
+  };
+
   // 4. API Trigger
   const startBlast = async () => {
-    if (waStatus !== 'connected') return alert("❌ WhatsApp is Disconnected! Please configure API first.");
+    if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
+    if (waStatus !== 'connected') return alert("❌ WhatsApp is Disconnected! Please check connection.");
     if (!mediaFile) return alert("❌ Please upload a Base Image!");
-    if (contacts.length === 0) return alert("❌ Please upload Contacts!");
     
     setCampaignState('running'); stopRef.current = false; setLogs([]); setProgress(0);
     let currentSent = 0, currentFailed = 0;
 
+    // 🔥 1. FILE KO BASE64 MEIN CONVERT KARO 🔥
+    let rawBase64MediaData = null;
+    let mimeType = null;
+    let originalFileName = null;
+
+    try {
+        const reader = new FileReader();
+        rawBase64MediaData = await new Promise((resolve, reject) => {
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = error => reject(error);
+            reader.readAsDataURL(mediaFile); 
+        });
+        mimeType = mediaFile.type;
+        originalFileName = mediaFile.name;
+    } catch (e) {
+        alert("❌ Error processing the media file.");
+        setCampaignState('stopped');
+        return;
+    }
+
     for (let i = 0; i < contacts.length; i++) {
       if (stopRef.current) { setCampaignState('stopped'); break; }
       const contact = contacts[i];
-      setLogs(prev => [{ id: i + 1, to: contact.name, status: "Sending..." }, ...prev]);
+      setLogs(prev => [{ id: i + 1, to: contact.phone, status: "Sending..." }, ...prev]);
 
       try {
-        const payload = {
-          email: user.email, phone: contact.phone, message: "Here is your personalized invite!", media_type: 'image',
-          sticker_config: { 
-             name: { text: contact.name, font: nameFont, size: nameSize, color: nameColor, outline: nameOutline, weight: nameWeight, style: nameStyle },
-             sub: { text: subText, font: subFont, size: subSize, color: subColor, outline: subOutline, weight: subWeight, style: subStyle },
-             box: { bg: boxBg, border: boxBorder, radius: boxRadius, padding: boxPadding, width: stickerWidth },
-             x: stickerPos.x, y: stickerPos.y 
-          }
-        };
+        let res;
 
-        const res = await fetch(`${API_URL}/send-message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (res.ok) { currentSent++; setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l)); }
-        else { currentFailed++; setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "❌ Failed" } : l)); }
+        // 🔥 2. CUSTOM STICKER KE SATH FINAL FILE BANAO 🔥
+        let finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
+
+        if (connectionMode === 'web') {
+           res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({
+               target: contact.phone,
+               text: "", // No caption for Studio images usually, unless you want to add a state for it
+               isGroup: false,
+               mediaBase64: finalMediaToSend, 
+               mediaType: mimeType,           
+               fileName: originalFileName     
+             })
+           });
+        } else {
+           const payload = {
+             email: user.email, phone: contact.phone, message: "Here is your invite!", media_type: 'image',
+             sticker_config: { 
+                 name: { text: contact.name, font: nameFont, size: nameSize, color: nameColor, outline: nameOutline, weight: nameWeight, style: nameStyle },
+                 sub: { text: subText, font: subFont, size: subSize, color: subColor, outline: subOutline, weight: subWeight, style: subStyle },
+                 box: { bg: boxBg, border: boxBorder, radius: boxRadius, padding: boxPadding, width: stickerWidth },
+                 x: stickerPos.x, y: stickerPos.y 
+             }
+           };
+           res = await fetch(`${API_URL}/send-message`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        }
+
+        const data = await res.json();
+
+        if (res.ok && data.success !== false) { 
+           currentSent++; 
+           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l)); 
+        } else { 
+           currentFailed++; 
+           const errorMsg = data.error ? data.error.substring(0, 20) : "Failed";
+           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l)); 
+           if (data.error && data.error.includes("disconnected")) {
+              alert("❌ Render Server restarted! Your session is wiped. Please go to Settings > Refresh QR Code.");
+              setCampaignState('stopped');
+              break;
+          }
+        }
       } catch (err) {
-        currentFailed++; setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
+        currentFailed++; 
+        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
+        await new Promise(r => setTimeout(r, 5000));
       }
       
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
@@ -243,8 +419,9 @@ const PersonalizedSender = () => {
          <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-3">
                🎨 Pro Graphic Studio
-               {waStatus === 'checking' && <span className="text-xs text-gray-400">Checking...</span>}
-               {waStatus === 'connected' && <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[10px] text-green-400">API Linked</span>}
+               {waStatus === 'checking' && <span className="text-xs text-yellow-400">Checking...</span>}
+               {waStatus === 'sleeping' && <span className="text-xs text-yellow-500 animate-pulse">Server Asleep</span>}
+               {waStatus === 'connected' && <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[10px] text-green-400">{connectionMode === 'web' ? 'Web Linked' : 'API Linked'}</span>}
                {waStatus === 'disconnected' && <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[10px] text-red-400">API Disconnected</span>}
             </h2>
          </div>
@@ -257,7 +434,7 @@ const PersonalizedSender = () => {
                <button onClick={() => stopRef.current = true} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all">⏹ Stop Blast</button>
             ) : (
                <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview || waStatus !== 'connected'} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                  🚀 Start Auto-Blast
+                 🚀 Start Auto-Blast
                </button>
             )}
          </div>
@@ -267,7 +444,7 @@ const PersonalizedSender = () => {
         
         {/* LEFT: ADVANCED TOOLS PANEL */}
         <div className="w-[340px] flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar pb-4">
-           
+            
            {/* Step 1 & 2: Uploads */}
            <div className="grid grid-cols-2 gap-3 flex-shrink-0">
              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
@@ -342,7 +519,7 @@ const PersonalizedSender = () => {
 
                {/* TAB CONTENTS */}
                <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
-                  
+                 
                   {/* --- NAME TAB --- */}
                   {activeTab === 'name' && (
                      <div className="space-y-4 animate-fade-in">
