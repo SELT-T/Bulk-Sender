@@ -39,50 +39,40 @@ const BulkSender = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user'));
 
-  // 🟢 🔥 100% FIXED CONNECTION CHECK 🔥 🟢
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
       if (!user) return setWaStatus('disconnected');
-      
       const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
       const mode = savedSettings.wa_connection_mode || 'api';
       setConnectionMode(mode);
 
       try {
         if (mode === 'web') {
-           // 🔥 SIRF RENDER ENGINE KO CHECK KAREGA
            const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
            const data = await res.json();
-           if (data.status === 'connected') {
-               setWaStatus('connected');
-           } else {
-               setWaStatus('disconnected');
-           }
+           if (data.status === 'connected') setWaStatus('connected');
+           else setWaStatus('disconnected');
         } else {
-           // 🔥 SIRF CLOUDFLARE API KO CHECK KAREGA
            const res = await fetch(`${API_URL}/get-settings`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
            });
            const data = await res.json();
-           if (data.instance_id && data.access_token) {
-               setWaStatus('connected');
-           } else {
-               setWaStatus('disconnected');
-           }
+           if (data.instance_id && data.access_token) setWaStatus('connected');
+           else setWaStatus('disconnected');
         }
       } catch (err) {
-        setWaStatus('disconnected');
+        // Agar server so raha hai, toh turant disconnect mat dikhao, warning do.
+        setWaStatus('sleeping'); 
       }
     };
     
-    // Pehli baar check karo
     checkRealConnection();
 
-    // Har 10 second me check karega taaki status hamesha update rahe
     interval = setInterval(() => {
-        checkRealConnection();
-    }, 10000); 
+        const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+        if (savedSettings.wa_connection_mode === 'web') fetch(`${WA_ENGINE_URL}/`).catch(() => {}); 
+    }, 45000); 
 
     return () => clearInterval(interval);
   }, [user]);
@@ -253,10 +243,7 @@ const BulkSender = () => {
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
     
-    // 🔴 Dhyan se Check karo! Agar status disconnected hai toh bhejne se roko!
-    if (waStatus !== 'connected') {
-        return alert("❌ WhatsApp Server is disconnected! Please go to Settings > Generate QR and scan it again.");
-    }
+    // 🔥 MAINE STRICT BLOCK HATA DIYA HAI. Ab ye Backend ko try karne dega. 🔥
     
     setCampaignState('running');
     pauseRef.current = false;
@@ -336,12 +323,22 @@ const BulkSender = () => {
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
           currentFailed++;
-          const errorMsg = data.error ? data.error.substring(0, 20) : "Failed";
+          // 🔴 Logs me Exact Error Dikhega
+          const errorMsg = data.error ? data.error.substring(0, 35) : "Failed to Send";
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
+          
+          // Agar server galti se restart ho gaya hai aur session ud gaya hai, toh block kardo
+          if (data.error && data.error.includes("disconnected")) {
+              alert("❌ Render Server restarted! Your session is wiped. Please go to Settings > Refresh QR Code.");
+              setCampaignState('stopped');
+              break;
+          }
         }
       } catch (err) {
         currentFailed++;
-        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Server Error" } : l));
+        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Waking Server..." } : l));
+        // Server so raha hai, 5 second ruko
+        await new Promise(r => setTimeout(r, 5000));
       }
       
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
@@ -362,7 +359,8 @@ const BulkSender = () => {
         <div>
           <h2 className="text-2xl font-bold text-white flex items-center gap-3">
              Bulk Sender Pro
-             {waStatus === 'checking' && <span className="text-xs text-gray-400">Checking connection...</span>}
+             {waStatus === 'checking' && <span className="text-xs text-yellow-400">Waking Server...</span>}
+             {waStatus === 'sleeping' && <span className="text-xs text-yellow-500 animate-pulse">Server Asleep. Send to Wake up.</span>}
              {waStatus === 'connected' && (
                 <span className="flex items-center gap-1.5 px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-xs text-green-400">
                   <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> {connectionMode === 'web' ? 'Web Connected' : 'API Connected'}
@@ -370,7 +368,7 @@ const BulkSender = () => {
              )}
              {waStatus === 'disconnected' && (
                 <span className="flex items-center gap-1.5 px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full text-xs text-red-400">
-                  <span className="w-2 h-2 bg-red-500 rounded-full"></span> API Disconnected
+                  <span className="w-2 h-2 bg-red-500 rounded-full"></span> {connectionMode === 'web' ? 'Web Disconnected' : 'API Disconnected'}
                 </span>
              )}
           </h2>
@@ -499,7 +497,7 @@ const BulkSender = () => {
           <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar scroll-smooth">
             {logs.length === 0 ? ( <div className="h-full flex flex-col items-center justify-center opacity-50 text-gray-500"><span className="text-4xl mb-2">⏳</span><p className="text-sm">Activity will appear here</p></div> ) : logs.map(log => (
                <div key={log.id} className="flex flex-col bg-[#0f172a] p-3 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors animate-fade-in">
-                  <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span><span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{log.status}</span></div>
+                  <div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span><span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') || log.status.includes('❌') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{log.status}</span></div>
                   <span className="text-xs font-mono text-gray-500">{log.to}</span>
                </div>
             ))}
