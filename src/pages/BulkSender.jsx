@@ -39,38 +39,50 @@ const BulkSender = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user'));
 
+  // 🟢 🔥 100% FIXED CONNECTION CHECK 🔥 🟢
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
       if (!user) return setWaStatus('disconnected');
+      
       const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
       const mode = savedSettings.wa_connection_mode || 'api';
       setConnectionMode(mode);
 
       try {
         if (mode === 'web') {
+           // 🔥 SIRF RENDER ENGINE KO CHECK KAREGA
            const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
            const data = await res.json();
-           if (data.status === 'connected') setWaStatus('connected');
-           else setWaStatus('disconnected');
+           if (data.status === 'connected') {
+               setWaStatus('connected');
+           } else {
+               setWaStatus('disconnected');
+           }
         } else {
+           // 🔥 SIRF CLOUDFLARE API KO CHECK KAREGA
            const res = await fetch(`${API_URL}/get-settings`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
            });
            const data = await res.json();
-           if (data.instance_id && data.access_token) setWaStatus('connected');
-           else setWaStatus('disconnected');
+           if (data.instance_id && data.access_token) {
+               setWaStatus('connected');
+           } else {
+               setWaStatus('disconnected');
+           }
         }
       } catch (err) {
         setWaStatus('disconnected');
       }
     };
+    
+    // Pehli baar check karo
     checkRealConnection();
 
+    // Har 10 second me check karega taaki status hamesha update rahe
     interval = setInterval(() => {
-        const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
-        if (savedSettings.wa_connection_mode === 'web') fetch(`${WA_ENGINE_URL}/`).catch(() => {}); 
-    }, 60000); 
+        checkRealConnection();
+    }, 10000); 
 
     return () => clearInterval(interval);
   }, [user]);
@@ -231,7 +243,6 @@ const BulkSender = () => {
                 ctx.font = `normal ${fontSize2}px ${fontFamily}`;
                 ctx.fillText(subTextStr, x, y + fontSize1/2 + pad/2);
             }
-            // Use 0.8 quality to slightly compress image and ensure fast delivery
             resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
         img.onerror = () => resolve(rawBase64); 
@@ -241,7 +252,11 @@ const BulkSender = () => {
 
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
-    if (waStatus !== 'connected') return alert("❌ WhatsApp is NOT connected.");
+    
+    // 🔴 Dhyan se Check karo! Agar status disconnected hai toh bhejne se roko!
+    if (waStatus !== 'connected') {
+        return alert("❌ WhatsApp Server is disconnected! Please go to Settings > Generate QR and scan it again.");
+    }
     
     setCampaignState('running');
     pauseRef.current = false;
@@ -250,9 +265,6 @@ const BulkSender = () => {
     setProgress(0);
     let currentSent = 0;
     let currentFailed = 0;
-
-    // 🔥 DYNAMIC ROUTING LOCK (Ye hamesha exact pata karega kon sa mode hai)
-    const currentMode = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}').wa_connection_mode || 'api';
 
     let rawBase64MediaData = null;
     let mimeType = null;
@@ -293,11 +305,11 @@ const BulkSender = () => {
         let res;
         
         let finalMediaToSend = rawBase64MediaData;
-        if (currentMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
+        if (connectionMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
         }
 
-        if (currentMode === 'web') {
+        if (connectionMode === 'web') {
            res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
@@ -317,14 +329,13 @@ const BulkSender = () => {
            });
         }
 
-        const data = await res.json(); // 🔴 READ EXACT ERROR MESSAGE FROM SERVER
+        const data = await res.json(); 
 
         if (res.ok && data.success) {
           currentSent++;
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
           currentFailed++;
-          // Ab screen par exact error dikhega (Jaise: "Number not on WhatsApp")
           const errorMsg = data.error ? data.error.substring(0, 20) : "Failed";
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
         }
