@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const Topbar = ({ user, setActivePage, onLogout }) => {
+// 🟢 NAYA PROP: toggleSidebar yahan add kiya hai
+const Topbar = ({ user, setActivePage, onLogout, toggleSidebar }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifMenu, setShowNotifMenu] = useState(false);
   
@@ -22,11 +23,20 @@ const Topbar = ({ user, setActivePage, onLogout }) => {
   }, []);
 
   return (
-    <div className="h-16 bg-[#111827]/90 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-6 sticky top-0 z-50">
+    // 🟢 Mobile par thodi kam padding (px-4) aur PC par standard (px-6) rakhi hai
+    <div className="h-16 bg-[#111827]/90 backdrop-blur-md border-b border-white/5 flex items-center justify-between px-4 md:px-6 sticky top-0 z-40 shadow-sm">
       
-      {/* Search Bar */}
       <div className="flex items-center gap-4 flex-1">
-        <div className="relative w-96 hidden md:block">
+        {/* 🟢 MOBILE HAMBURGER BUTTON (Sirf mobile me dikhega) */}
+        <button 
+           onClick={toggleSidebar}
+           className="lg:hidden text-gray-400 hover:text-white p-2 -ml-2 rounded-lg focus:outline-none focus:bg-gray-800 transition-colors"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
+
+        {/* Search Bar (Sirf PC par dikhega) */}
+        <div className="relative w-96 hidden lg:block">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">🔍</span>
           <input 
             type="text" 
@@ -36,7 +46,7 @@ const Topbar = ({ user, setActivePage, onLogout }) => {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4">
         
         {/* 🔔 Notification Dropdown */}
         <div className="relative" ref={notifRef}>
@@ -49,7 +59,8 @@ const Topbar = ({ user, setActivePage, onLogout }) => {
           </button>
 
           {showNotifMenu && (
-            <div className="absolute right-0 mt-3 w-80 bg-[#1e293b] border border-gray-700 rounded-xl shadow-2xl py-2 animate-fade-in-up origin-top-right">
+            // Mobile par right menu thoda chota kiya hai width me (w-72)
+            <div className="absolute right-[-40px] md:right-0 mt-3 w-72 md:w-80 bg-[#1e293b] border border-gray-700 rounded-xl shadow-2xl py-2 animate-fade-in-up origin-top-right">
               <div className="px-4 py-2 border-b border-gray-700">
                 <h3 className="text-white font-semibold text-sm">Notifications</h3>
               </div>
@@ -78,12 +89,12 @@ const Topbar = ({ user, setActivePage, onLogout }) => {
         <div className="relative" ref={profileRef}>
           <div 
             onClick={() => setShowProfileMenu(!showProfileMenu)} 
-            className="flex items-center gap-3 cursor-pointer hover:bg-white/5 p-1.5 rounded-lg transition-all border border-transparent hover:border-white/10"
+            className="flex items-center gap-2 md:gap-3 cursor-pointer hover:bg-white/5 p-1 md:p-1.5 rounded-lg transition-all border border-transparent hover:border-white/10"
           >
             <div className="w-8 h-8 rounded-full bg-gradient-to-r from-fuchsia-600 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">
               {user?.name ? user.name.charAt(0).toUpperCase() : 'A'}
             </div>
-            <div className="hidden md:block text-left">
+            <div className="hidden sm:block text-left">
               <p className="text-sm font-medium text-white leading-none mb-1">
                 {user?.name || 'Admin'}
               </p>
