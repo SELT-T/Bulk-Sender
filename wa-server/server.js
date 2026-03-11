@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const pino = require('pino'); 
 const fs = require('fs');
@@ -8,6 +8,7 @@ const fs = require('fs');
 const app = express();
 app.use(cors({ origin: '*' })); 
 
+// 🔥 BADI FILES KE LIYE LIMIT BADHAI
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
@@ -16,7 +17,6 @@ let qrCodeBase64 = null;
 let waStatus = 'disconnected'; 
 
 async function connectToWhatsApp() {
-    // Agar pehle se connected ya scan kar raha hai toh dubara start mat karo
     if (waStatus === 'scanning' || waStatus === 'connected') return;
     
     waStatus = 'generating';
@@ -30,7 +30,8 @@ async function connectToWhatsApp() {
             version,
             auth: state,
             printQRInTerminal: true,
-            browser: Browsers.macOS('Desktop'), 
+            // 🔥 THE MAGIC FIX: FAKING A NORMAL CHROME BROWSER SO WHATSAPP DOESN'T BLOCK IT 🔥
+            browser: ['Windows', 'Chrome', '111.0.0.0'], 
             syncFullHistory: false, 
             logger: pino({ level: "silent" }) 
         });
@@ -49,7 +50,6 @@ async function connectToWhatsApp() {
                 
                 if (shouldReconnect) {
                     console.log("🔄 Background drop detected. Silently reconnecting...");
-                    // 🔥 FIX: Yahan waStatus = 'disconnected' nahi karenge, taaki frontend panic na kare!
                     setTimeout(connectToWhatsApp, 3000); 
                 } else {
                     console.log("❌ User logged out manually from phone.");
@@ -131,7 +131,6 @@ app.post('/api/wa-send', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
 
 // 🟢 FETCH GROUPS API 🟢
 app.get('/api/wa-get-groups', async (req, res) => {
