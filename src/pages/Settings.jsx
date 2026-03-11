@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
 const Settings = () => {
-  const [activeTab, setActiveTab] = useState('profile');
+  // 🔥 ASLI FIX: Current logged-in user ko fetch karna
+  const loggedInUser = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com', name: 'Demo Admin' };
+
+  const [activeTab, setActiveTab] = useState('ai'); // Default AI tab khulega
   const [isSaving, setIsSaving] = useState(false);
   const [showPassword, setShowPassword] = useState({}); 
 
@@ -14,9 +17,9 @@ const Settings = () => {
 
   // === GLOBAL SETTINGS STATE ===
   const [settings, setSettings] = useState({
-    // Profile
-    fullName: 'Demo Admin',
-    email: 'demo@reachify.com',
+    // Profile (Locked to logged-in user)
+    fullName: loggedInUser.name,
+    email: loggedInUser.email,
     phone: '',
     companyName: '',
     
@@ -57,10 +60,10 @@ const Settings = () => {
     li_client_id: '',
     li_client_secret: '',
     
-    // Data Extractors (GMap)
+    // Data Extractors
     gmaps_api_key: '',
     
-    // 🔥 AI Configuration (GEMINI SETTINGS UPDATED) 🔥
+    // AI Configuration
     ai_provider: 'gemini',
     ai_api_key: '',
     ai_max_tokens: '2000'
@@ -69,12 +72,19 @@ const Settings = () => {
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
 
-  // LOAD SETTINGS
+  // LOAD SETTINGS FROM LOCAL & DB
   useEffect(() => {
     const savedSettings = localStorage.getItem('reachify_api_settings');
     if (savedSettings) {
       const parsed = JSON.parse(savedSettings);
-      setSettings(prev => ({ ...prev, ...parsed }));
+      // 🔥 Forcefully merge with real logged-in email and Gemini provider
+      setSettings(prev => ({ 
+         ...prev, 
+         ...parsed, 
+         email: loggedInUser.email, 
+         fullName: loggedInUser.name,
+         ai_provider: 'gemini' 
+      }));
       if(parsed.wa_connection_mode) setWaConnectionType(parsed.wa_connection_mode);
     }
   }, []);
@@ -145,17 +155,28 @@ const Settings = () => {
     setShowPassword(prev => ({ ...prev, [field]: !prev[field] }));
   };
 
+  // 🔥 SAVE TO BACKEND WITH REAL EMAIL
   const handleSave = async () => {
     setIsSaving(true);
-    localStorage.setItem('reachify_api_settings', JSON.stringify(settings));
+    
+    // Safety check: ensure email is correct before saving
+    const finalSettings = { ...settings, email: loggedInUser.email, ai_provider: 'gemini' };
+    localStorage.setItem('reachify_api_settings', JSON.stringify(finalSettings));
 
     try {
-      await fetch(`${API_URL}/update-settings`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(settings)
+      const res = await fetch(`${API_URL}/update-settings`, {
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(finalSettings)
       });
-      setTimeout(() => { setIsSaving(false); alert("✅ Settings Saved Successfully!"); }, 800);
+      
+      if(res.ok) {
+         setTimeout(() => { setIsSaving(false); alert("✅ Settings Saved Successfully to Database!"); }, 800);
+      } else {
+         throw new Error("Backend save failed");
+      }
     } catch (error) {
-      setTimeout(() => { setIsSaving(false); alert("✅ Settings Saved Locally!"); }, 800);
+      setTimeout(() => { setIsSaving(false); alert("⚠️ Network error, but settings saved locally."); }, 800);
     }
   };
 
@@ -164,12 +185,8 @@ const Settings = () => {
     setWebStatus('generating'); 
     setLiveLog('⏳ Requesting fresh QR Code... Waking up Engine (takes 20-50s)...');
     setQrCodeData(null);
-
-    try {
-      await fetch(`${WA_ENGINE_URL}/api/wa-status`);
-    } catch (err) {
-      setLiveLog('⚠️ Server is sleeping. Waking it up, please keep waiting...');
-    }
+    try { await fetch(`${WA_ENGINE_URL}/api/wa-status`); } 
+    catch (err) { setLiveLog('⚠️ Server is sleeping. Waking it up, please keep waiting...'); }
   };
 
   const disconnectWeb = async () => {
@@ -180,9 +197,7 @@ const Settings = () => {
         setQrCodeData(null);
         setIsGeneratingQR(false);
         setLiveLog('❌ Engine Reset successfully. Click Generate QR to start fresh.');
-    } catch (err) {
-        setLiveLog('⚠️ Failed to reach server for reset.');
-    }
+    } catch (err) { setLiveLog('⚠️ Failed to reach server for reset.'); }
   };
 
   // --- UI MENU CONFIG ---
@@ -288,13 +303,13 @@ const Settings = () => {
             {activeTab === 'profile' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-3xl">
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 md:gap-6 mb-4 md:mb-8 bg-[#0f172a] p-4 md:p-6 rounded-2xl border border-gray-700">
-                   <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-gradient-to-tr from-fuchsia-500 to-indigo-600 flex items-center justify-center text-2xl md:text-4xl text-white font-bold shadow-lg flex-shrink-0">
-                      {settings.fullName.charAt(0)}
+                   <div className="w-16 h-16 md:w-24 md:h-24 rounded-full bg-gradient-to-tr from-fuchsia-500 to-indigo-600 flex items-center justify-center text-2xl md:text-4xl text-white font-bold shadow-lg flex-shrink-0 uppercase">
+                      {settings.fullName ? settings.fullName.charAt(0) : 'U'}
                    </div>
                    <div className="text-center sm:text-left">
                       <h3 className="text-xl md:text-2xl font-bold text-white">{settings.fullName}</h3>
                       <p className="text-gray-400 text-xs md:text-sm">{settings.email}</p>
-                      <button className="mt-2 md:mt-3 text-[10px] md:text-xs bg-white/10 hover:bg-white/20 text-white px-3 md:px-4 py-1.5 md:py-2 rounded-lg transition-all border border-gray-600">Change Avatar</button>
+                      <button className="mt-2 md:mt-3 text-[10px] md:text-xs bg-white/10 hover:bg-white/20 text-white px-3 md:px-4 py-1.5 md:py-2 rounded-lg transition-all border border-gray-600">Logged In Account</button>
                    </div>
                 </div>
 
@@ -585,7 +600,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* 🔥 9. AI MODELS (UPDATED FOR GEMINI) 🔥 */}
+            {/* 🔥 9. AI MODELS (LOCKED TO GEMINI) 🔥 */}
             {activeTab === 'ai' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-2xl">
                 
@@ -593,16 +608,15 @@ const Settings = () => {
                    <span className="text-2xl">💡</span>
                    <div>
                       <h4 className="text-blue-400 font-bold text-sm">Google Gemini AI Engine</h4>
-                      <p className="text-gray-400 text-xs mt-1">We have completely integrated Google's ultra-fast Gemini 1.5 Flash API for limitless free generations. Paste your copied key below.</p>
+                      <p className="text-gray-400 text-xs mt-1">We have integrated Google's ultra-fast Gemini API. Paste your key below to unlock the AI Studio.</p>
                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <div>
                     <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">AI Provider Engine</label>
-                    <select name="ai_provider" value={settings.ai_provider} onChange={handleChange} className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-xs md:text-sm text-white outline-none focus:border-blue-500">
-                      <option value="gemini">Google Gemini 1.5 Flash (Free)</option>
-                      <option value="openai" disabled>OpenAI GPT-4o (Premium)</option>
+                    <select disabled className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-xs md:text-sm text-fuchsia-400 font-bold outline-none cursor-not-allowed">
+                      <option>Google Gemini 1.5 Flash (Free)</option>
                     </select>
                   </div>
                   <div>
@@ -619,7 +633,7 @@ const Settings = () => {
                     </button>
                   </div>
                   {settings.ai_api_key && settings.ai_api_key.startsWith('AIza') && (
-                     <p className="text-green-400 text-xs mt-2 font-bold flex items-center gap-1"><span>✅</span> Valid Gemini Key Format Detected. Don't forget to click Save.</p>
+                     <p className="text-green-400 text-xs mt-2 font-bold flex items-center gap-1"><span>✅</span> Valid Gemini Key format detected.</p>
                   )}
                 </div>
               </div>
