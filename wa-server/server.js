@@ -108,7 +108,12 @@ app.post('/api/wa-send', async (req, res) => {
             }
             jid = waResult.jid; // Meta ka exact ID use karo
         } else {
-            jid = `${jid}@g.us`;
+            // Check if user is sending to a group directly via ID (for Live Fetch feature)
+            if (target.includes('@g.us')) {
+                jid = target; // Use exactly as passed if it already has @g.us
+            } else {
+                jid = `${jid}@g.us`;
+            }
         }
 
         let msgPayload = {};
@@ -136,6 +141,71 @@ app.post('/api/wa-send', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+
+// ==========================================
+// 🟢 NEW ROUTES: LIVE GROUP FETCHING & EXTRACTION
+// ==========================================
+
+// 1. Fetch All Active Groups
+app.get('/api/wa-get-groups', async (req, res) => {
+    try {
+        if (waStatus !== 'connected' || !sock || !sock.user) {
+            return res.status(400).json({ success: false, error: 'WhatsApp disconnected' });
+        }
+        
+        // Retrieve all chats
+        const chats = await sock.groupFetchAllParticipating();
+        
+        if (!chats || Object.keys(chats).length === 0) {
+             return res.json({ success: true, groups: [] });
+        }
+
+        const groups = Object.keys(chats).map(key => ({
+            id: chats[key].id,
+            name: chats[key].subject || 'Unnamed Group'
+        }));
+        
+        res.json({ success: true, groups });
+    } catch (error) {
+        console.log("Group Fetch Error:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 2. Extract Members from a specific Group
+app.post('/api/wa-get-group-members', async (req, res) => {
+    try {
+        const { groupId } = req.body;
+        if (waStatus !== 'connected' || !sock || !sock.user) {
+            return res.status(400).json({ success: false, error: 'WhatsApp disconnected' });
+        }
+        
+        if (!groupId) return res.status(400).json({ success: false, error: 'Group ID is required' });
+
+        const groupMetadata = await sock.groupMetadata(groupId);
+        if (!groupMetadata || !groupMetadata.participants) {
+            return res.status(404).json({ success: false, error: 'Group data not found. You may not be a participant.' });
+        }
+
+        const participants = groupMetadata.participants.map((p, index) => {
+            // Convert participant ID (e.g., 919876543210@s.whatsapp.net) to phone number
+            const phoneStr = p.id.split('@')[0];
+            return {
+                id: index + 1,
+                name: 'Group Member', // Note: WhatsApp web doesn't send the names of unsaved contacts automatically
+                phone: `+${phoneStr}`,
+                isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
+            };
+        });
+
+        res.json({ success: true, members: participants });
+    } catch (error) {
+        console.log("Group Extract Error:", error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => { console.log(`🚀 Engine running on port ${PORT}`); });
