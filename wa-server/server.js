@@ -16,7 +16,7 @@ let sock = null;
 let qrCodeBase64 = null;
 let waStatus = 'disconnected'; 
 
-// Kachra (Corrupt Session) saaf karne ka function
+// 🔥 Asli fix "Couldn't link device" ke liye (Kachra saaf karna)
 function clearSession() {
     try {
         if (fs.existsSync('auth_info_baileys')) {
@@ -30,26 +30,18 @@ async function connectToWhatsApp() {
     if (waStatus === 'scanning' || waStatus === 'connected') return;
     
     waStatus = 'generating';
-    console.log("🚀 Starting Rock-Solid Engine...");
+    console.log("🚀 Starting Fast Original Engine...");
 
     try {
-        // 🔥 CRITICAL FIX: WhatsApp version lazmi hai warna QR nahi aayega
-        let waVersion = [2, 3000, 1015901307]; // Safe Fallback Version
-        try {
-            const { version } = await fetchLatestBaileysVersion();
-            waVersion = version;
-        } catch (e) {
-            console.log("⚠️ Version fetch failed, using fallback.");
-        }
-
+        // Wapas purana fast system
+        const { version } = await fetchLatestBaileysVersion();
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
         
         sock = makeWASocket({
-            version: waVersion,
+            version,
             auth: state,
             printQRInTerminal: true,
-            // 🔥 BEST FIX FOR "COULDN'T LINK DEVICE" - Act exactly like Ubuntu Chrome
-            browser: Browsers.ubuntu('Chrome'), 
+            browser: Browsers.macOS('Desktop'), // Original fast browser
             syncFullHistory: false, 
             logger: pino({ level: "silent" }) 
         });
@@ -67,6 +59,7 @@ async function connectToWhatsApp() {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
                 console.log("⚠️ Connection Dropped. Code:", statusCode);
                 
+                // Agar sach me logout hua hai tabhi session delete karo
                 if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403) {
                     console.log("❌ Logged out. Resetting...");
                     waStatus = 'disconnected';
@@ -74,6 +67,7 @@ async function connectToWhatsApp() {
                     sock = null;
                     clearSession();
                 } else {
+                    // Agar background me drop hua toh chupchap reconnect karo
                     console.log("🔄 Background Drop. Silently Reconnecting...");
                     waStatus = 'disconnected';
                     setTimeout(connectToWhatsApp, 2000); 
@@ -97,14 +91,14 @@ async function connectToWhatsApp() {
 
 connectToWhatsApp();
 
-app.get('/', (req, res) => { res.send("🚀 Engine is Alive!"); });
+app.get('/', (req, res) => { res.send("🚀 Reachify Engine Running!"); });
 
 app.get('/api/wa-status', (req, res) => {
     if (waStatus === 'disconnected' && !sock) connectToWhatsApp();
     res.json({ status: waStatus, qr: qrCodeBase64 });
 });
 
-// 🛑 FORCE RESET ENDPOINT
+// 🛑 FORCE RESET ENDPOINT (Ye button dabaate hi sab thik hoga)
 app.post('/api/wa-logout', async (req, res) => {
     try {
         if (sock) await sock.logout();
