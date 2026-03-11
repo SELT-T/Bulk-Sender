@@ -7,25 +7,22 @@ const BrandLogo = () => (
   </svg>
 );
 
-// 🟢 NAYE PROPS: isOpen aur setIsOpen add kiye jo App.jsx se aayenge
-const Sidebar = ({ activePage, setActivePage, isOpen, setIsOpen }) => {
+const Sidebar = ({ activePage, setActivePage, isOpen, setIsOpen, userRole }) => {
   const [openMenu, setOpenMenu] = useState('campaigns');
 
   const toggleMenu = (menu) => {
     setOpenMenu(openMenu === menu ? '' : menu);
   };
 
-  // Jab bhi koi page select ho, mobile me sidebar apne aap band ho jaye
   const handlePageChange = (page) => {
       setActivePage(page);
-      if (window.innerWidth < 1024) { // 1024px is standard Tailwind lg breakpoint
+      if (window.innerWidth < 1024) { 
           setIsOpen(false);
       }
   };
 
   return (
     <>
-      {/* 🟢 MOBILE BACKDROP (Kala Parda): Sirf tab dikhega jab menu open ho aur screen choti ho */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
@@ -33,7 +30,6 @@ const Sidebar = ({ activePage, setActivePage, isOpen, setIsOpen }) => {
         ></div>
       )}
 
-      {/* 🟢 SIDEBAR CONTAINER: PC par normal rahega, Mobile par side se khiskega */}
       <div 
         className={`fixed lg:static inset-y-0 left-0 w-72 h-full bg-[#111827]/95 backdrop-blur-xl lg:bg-[#111827]/90 lg:backdrop-blur-md border-r border-white/5 flex flex-col shadow-[10px_0_30px_rgba(0,0,0,0.5)] lg:shadow-2xl z-50 transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}
       >
@@ -45,7 +41,6 @@ const Sidebar = ({ activePage, setActivePage, isOpen, setIsOpen }) => {
                Reachify Pro
              </h1>
           </div>
-          {/* 🟢 MOBILE CLOSE BUTTON */}
           <button 
              onClick={() => setIsOpen(false)} 
              className="lg:hidden text-gray-400 hover:text-white bg-gray-800/50 p-1.5 rounded-lg border border-gray-700"
@@ -63,6 +58,16 @@ const Sidebar = ({ activePage, setActivePage, isOpen, setIsOpen }) => {
             >
               <span className="text-xl">📊</span> <span className="font-medium">Dashboard Overview</span>
             </button>
+
+            {/* 👑 ADMIN ONLY BUTTON */}
+            {userRole === 'admin' && (
+               <button 
+                 onClick={() => handlePageChange('admin-panel')}
+                 className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all mt-2 ${activePage === 'admin-panel' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-gray-800/50 text-gray-400 hover:bg-gray-800 hover:text-white border border-gray-700'}`}
+               >
+                 <span className="text-xl">👑</span> <span className="font-bold">Admin Dashboard</span>
+               </button>
+            )}
 
             <div className="pt-4">
               <p className="px-4 text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Core Features</p>
