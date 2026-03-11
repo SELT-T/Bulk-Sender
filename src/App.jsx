@@ -25,6 +25,9 @@ function App() {
 
   const [activePage, setActivePage] = useState('dashboard');
   const [authMode, setAuthMode] = useState('login');
+  
+  // 🟢 NAYA STATE: Mobile Sidebar control karne ke liye
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   // Jab bhi User login/logout ho, use Memory (LocalStorage) mein save karo
   useEffect(() => {
@@ -66,14 +69,25 @@ function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0f172a]">
-      <Sidebar activePage={activePage} setActivePage={setActivePage} />
+      {/* 🟢 Sidebar ko open/close state pass ki */}
+      <Sidebar 
+        activePage={activePage} 
+        setActivePage={setActivePage} 
+        isOpen={isSidebarOpen} 
+        setIsOpen={setIsSidebarOpen} 
+      />
+      
       <div className="flex-1 flex flex-col relative overflow-hidden">
+        {/* 🟢 Topbar ko toggle function pass kiya taaki button daba sakein */}
         <Topbar 
           user={user} 
           setActivePage={setActivePage} 
           onLogout={handleLogout} 
+          toggleSidebar={() => setIsSidebarOpen(true)}
         />
-        <main className="flex-1 overflow-y-auto p-6 transition-all duration-300">
+        
+        {/* 🟢 Mobile me thodi kam padding rakhi (p-2/p-4) aur PC me (md:p-6) */}
+        <main className="flex-1 overflow-y-auto p-2 md:p-6 transition-all duration-300">
           {renderPage()}
         </main>
       </div>
