@@ -155,7 +155,7 @@ app.get('/api/wa-get-groups', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// 🟢 3. EXTRACT GROUP MEMBERS API (STRICT RAW EXTRACTION - NO FAKE TEXT)
+// 🟢 3. EXTRACT GROUP MEMBERS API (100% REAL NUMBERS FIX)
 app.post('/api/wa-get-group-members', async (req, res) => {
     try {
         const { groupId } = req.body;
@@ -165,28 +165,35 @@ app.post('/api/wa-get-group-members', async (req, res) => {
         const groupMetadata = await sock.groupMetadata(groupId);
         if (!groupMetadata || !groupMetadata.participants) return res.status(404).json({ success: false, error: 'No data.' });
 
-        const realParticipants = [];
-        let idCounter = 1;
-
-        for (let p of groupMetadata.participants) {
+        const participants = groupMetadata.participants.map((p, index) => {
             const rawId = p.id || '';
-            // Bas pure digits nikalenge, koi "Hidden" text nahi
-            let phoneStr = rawId.split('@')[0];
+            let finalPhone = '';
 
-            realParticipants.push({
-                id: idCounter++,
-                name: 'Group Member',
-                phone: `+${phoneStr}`,
-                isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
-            });
-        }
+            // ✅ Agar WhatsApp ne ASLI Number bheja hai
+            if (rawId.includes('@s.whatsapp.net')) {
+                finalPhone = `+${rawId.split('@')[0]}`;
+            } 
+            // 🔴 Agar WhatsApp ne Security ki wajah se number hide kiya hai (LID)
+            else if (rawId.includes('@lid')) {
+                finalPhone = '🔒 Hidden by WA API (Use Paste Text Method)';
+            } 
+            else {
+                finalPhone = rawId;
+            }
 
-        res.json({ success: true, members: realParticipants });
+            return { 
+                id: index + 1, 
+                name: 'Group Member', 
+                phone: finalPhone, 
+                isAdmin: p.admin === 'admin' || p.admin === 'superadmin' 
+            };
+        });
+
+        res.json({ success: true, members: participants });
     } catch (error) { 
         res.status(500).json({ success: false, error: error.message }); 
     }
 });
-
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => { console.log(`🚀 Engine running on port ${PORT}`); });
 
