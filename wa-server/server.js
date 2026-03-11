@@ -1,6 +1,6 @@
 const express = require('express');
 const cors = require('cors');
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const pino = require('pino'); 
 const fs = require('fs');
@@ -16,32 +16,40 @@ let sock = null;
 let qrCodeBase64 = null;
 let waStatus = 'disconnected'; 
 
-// 🔥 CORRUPT SESSION KO DELETE KARNE KA STRICT FUNCTION
+// Kachra (Corrupt Session) saaf karne ka function
 function clearSession() {
     try {
         if (fs.existsSync('auth_info_baileys')) {
             fs.rmSync('auth_info_baileys', { recursive: true, force: true });
-            console.log("🗑️ Corrupt Session Wiped Clean.");
+            console.log("🗑️ Session Wiped Clean.");
         }
-    } catch (e) {
-        console.log("Error clearing session:", e);
-    }
+    } catch (e) {}
 }
 
 async function connectToWhatsApp() {
     if (waStatus === 'scanning' || waStatus === 'connected') return;
     
     waStatus = 'generating';
-    console.log("🚀 Starting Rock-Solid Baileys Engine...");
+    console.log("🚀 Starting Rock-Solid Engine...");
 
     try {
+        // 🔥 CRITICAL FIX: WhatsApp version lazmi hai warna QR nahi aayega
+        let waVersion = [2, 3000, 1015901307]; // Safe Fallback Version
+        try {
+            const { version } = await fetchLatestBaileysVersion();
+            waVersion = version;
+        } catch (e) {
+            console.log("⚠️ Version fetch failed, using fallback.");
+        }
+
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
         
         sock = makeWASocket({
+            version: waVersion,
             auth: state,
             printQRInTerminal: true,
-            // 🔥 BROWSER SPOOFING (No ban)
-            browser: ['Reachify Pro', 'Chrome', '111.0'], 
+            // 🔥 BEST FIX FOR "COULDN'T LINK DEVICE" - Act exactly like Ubuntu Chrome
+            browser: Browsers.ubuntu('Chrome'), 
             syncFullHistory: false, 
             logger: pino({ level: "silent" }) 
         });
@@ -50,7 +58,7 @@ async function connectToWhatsApp() {
             const { connection, lastDisconnect, qr } = update;
             
             if (qr) {
-                console.log("✅ QR Code Ready to Scan!");
+                console.log("✅ QR Code Ready!");
                 qrCodeBase64 = await qrcode.toDataURL(qr);
                 waStatus = 'scanning';
             }
@@ -59,20 +67,19 @@ async function connectToWhatsApp() {
                 const statusCode = lastDisconnect?.error?.output?.statusCode;
                 console.log("⚠️ Connection Dropped. Code:", statusCode);
                 
-                // 401 Unauthorized ya 403 Forbidden ka matlab user ne phone se logout kiya hai ya session corrupt hai
-                if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403 || statusCode === 405) {
-                    console.log("❌ Device Unlinked or Corrupted. Resetting...");
+                if (statusCode === DisconnectReason.loggedOut || statusCode === 401 || statusCode === 403) {
+                    console.log("❌ Logged out. Resetting...");
                     waStatus = 'disconnected';
                     qrCodeBase64 = null;
                     sock = null;
                     clearSession();
                 } else {
-                    console.log("🔄 Network Drop. Silently Reconnecting...");
+                    console.log("🔄 Background Drop. Silently Reconnecting...");
                     waStatus = 'disconnected';
-                    setTimeout(connectToWhatsApp, 3000); 
+                    setTimeout(connectToWhatsApp, 2000); 
                 }
             } else if (connection === 'open') {
-                console.log("✅ WhatsApp Connected Successfully!");
+                console.log("✅ WhatsApp Connected & Locked in!");
                 waStatus = 'connected';
                 qrCodeBase64 = null;
             }
@@ -80,7 +87,7 @@ async function connectToWhatsApp() {
 
         sock.ev.on('creds.update', saveCreds);
     } catch (error) {
-        console.log("❌ Engine Crash Error:", error);
+        console.log("❌ Engine Crash:", error);
         waStatus = 'disconnected';
         qrCodeBase64 = null;
         sock = null;
@@ -88,39 +95,30 @@ async function connectToWhatsApp() {
     }
 }
 
-// Auto-start on boot
 connectToWhatsApp();
 
-app.get('/', (req, res) => { res.send("🚀 Reachify Engine Running Perfectly!"); });
+app.get('/', (req, res) => { res.send("🚀 Engine is Alive!"); });
 
 app.get('/api/wa-status', (req, res) => {
-    if (waStatus === 'disconnected' && !sock) {
-        connectToWhatsApp();
-    }
+    if (waStatus === 'disconnected' && !sock) connectToWhatsApp();
     res.json({ status: waStatus, qr: qrCodeBase64 });
 });
 
-// 🛑 FORCE RESET ENDPOINT (Ye button dabaate hi sab saaf ho jayega)
+// 🛑 FORCE RESET ENDPOINT
 app.post('/api/wa-logout', async (req, res) => {
-    console.log("🛑 Manual Reset Triggered!");
     try {
-        if (sock) {
-            await sock.logout();
-        }
+        if (sock) await sock.logout();
     } catch (err) {}
-    
     waStatus = 'disconnected';
     qrCodeBase64 = null;
     sock = null;
     clearSession();
-    res.json({ success: true, message: 'Engine forcefully reset.' });
+    res.json({ success: true });
 });
 
 // 🟢 1. SENDER API
 app.post('/api/wa-send', async (req, res) => {
-    if (waStatus !== 'connected' || !sock) {
-        return res.status(400).json({ error: "WhatsApp is disconnected. Please re-scan." });
-    }
+    if (waStatus !== 'connected' || !sock) return res.status(400).json({ error: "WhatsApp disconnected." });
     
     try {
         const { target, text, isGroup, mediaBase64, mediaType, fileName } = req.body;
@@ -128,7 +126,7 @@ app.post('/api/wa-send', async (req, res) => {
 
         if (!isGroup) {
             const [waResult] = await sock.onWhatsApp(jid);
-            if (!waResult) return res.status(404).json({ error: "Number is not on WhatsApp" });
+            if (!waResult) return res.status(404).json({ error: "Not on WhatsApp" });
             jid = waResult.jid;
         } else {
             if (target.includes('@g.us')) jid = target; 
@@ -140,59 +138,47 @@ app.post('/api/wa-send', async (req, res) => {
         if (mediaBase64) {
             const base64Data = mediaBase64.includes(';base64,') ? mediaBase64.split(';base64,').pop() : mediaBase64;
             const buffer = Buffer.from(base64Data, 'base64');
-
             if (mediaType && mediaType.startsWith('image/')) msgPayload = { image: buffer, caption: text || '' };
             else if (mediaType && mediaType.startsWith('video/')) msgPayload = { video: buffer, caption: text || '' };
-            else msgPayload = { document: buffer, mimetype: mediaType || 'application/pdf', fileName: fileName || 'Document', caption: text || '' };
+            else msgPayload = { document: buffer, mimetype: mediaType || 'application/pdf', fileName: fileName || 'Doc', caption: text || '' };
         } else {
             msgPayload = { text: text || '' };
         }
 
         await sock.sendMessage(jid, msgPayload);
         res.json({ success: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
+    } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 // 🟢 2. LIVE FETCH GROUPS API
 app.get('/api/wa-get-groups', async (req, res) => {
     try {
-        if (waStatus !== 'connected' || !sock) return res.status(400).json({ success: false, error: 'WhatsApp disconnected' });
-        
+        if (waStatus !== 'connected' || !sock) return res.status(400).json({ success: false, error: 'Disconnected' });
         const chats = await sock.groupFetchAllParticipating();
-        if (!chats || Object.keys(chats).length === 0) return res.json({ success: true, groups: [] });
-
-        const groups = Object.keys(chats).map(key => ({ id: chats[key].id, name: chats[key].subject || 'Unnamed Group' }));
+        if (!chats) return res.json({ success: true, groups: [] });
+        const groups = Object.keys(chats).map(k => ({ id: chats[k].id, name: chats[k].subject || 'Group' }));
         res.json({ success: true, groups });
-    } catch (error) { 
-        res.status(500).json({ success: false, error: error.message }); 
-    }
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
 // 🟢 3. EXTRACT GROUP MEMBERS API
 app.post('/api/wa-get-group-members', async (req, res) => {
     try {
         const { groupId } = req.body;
-        if (waStatus !== 'connected' || !sock) return res.status(400).json({ success: false, error: 'WhatsApp disconnected' });
-        if (!groupId) return res.status(400).json({ success: false, error: 'Group ID is required' });
+        if (waStatus !== 'connected' || !sock) return res.status(400).json({ success: false, error: 'Disconnected' });
+        if (!groupId) return res.status(400).json({ success: false, error: 'Group ID needed' });
 
         const groupMetadata = await sock.groupMetadata(groupId);
-        if (!groupMetadata || !groupMetadata.participants) return res.status(404).json({ success: false, error: 'Group data not found.' });
+        if (!groupMetadata || !groupMetadata.participants) return res.status(404).json({ success: false, error: 'No data.' });
 
-        const participants = groupMetadata.participants.map((p, index) => {
-            const phoneStr = p.id.split('@')[0];
-            return { id: index + 1, name: 'Group Member', phone: `+${phoneStr}`, isAdmin: p.admin === 'admin' || p.admin === 'superadmin' };
-        });
-
+        const participants = groupMetadata.participants.map((p, i) => ({
+            id: i + 1, name: 'Group Member', phone: `+${p.id.split('@')[0]}`, isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
+        }));
         res.json({ success: true, members: participants });
-    } catch (error) { 
-        res.status(500).json({ success: false, error: error.message }); 
-    }
+    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => { console.log(`🚀 Engine running on port ${PORT}`); });
 
-// Anti-Sleep Self Ping
 setInterval(() => { fetch("https://reachify-wa-engine.onrender.com/").catch(() => {}); }, 10 * 60 * 1000);
