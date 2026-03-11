@@ -155,7 +155,7 @@ app.get('/api/wa-get-groups', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// 🟢 3. EXTRACT GROUP MEMBERS API (STRICT REAL NUMBERS ONLY)
+// 🟢 3. EXTRACT GROUP MEMBERS API (STRICT RAW EXTRACTION - NO FAKE TEXT)
 app.post('/api/wa-get-group-members', async (req, res) => {
     try {
         const { groupId } = req.body;
@@ -170,28 +170,15 @@ app.post('/api/wa-get-group-members', async (req, res) => {
 
         for (let p of groupMetadata.participants) {
             const rawId = p.id || '';
-            let phoneStr = '';
-            let nameStr = 'Group Member';
+            // Bas pure digits nikalenge, koi "Hidden" text nahi
+            let phoneStr = rawId.split('@')[0];
 
-            // ✅ Agar sach mein REAL number hai
-            if (rawId.includes('@s.whatsapp.net')) {
-                phoneStr = `+${rawId.split('@')[0]}`;
-                realParticipants.push({
-                    id: idCounter++,
-                    name: nameStr,
-                    phone: phoneStr,
-                    isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
-                });
-            } 
-            // 🔒 Agar WhatsApp ne number chhupa diya hai (Community Group Privacy)
-            else if (rawId.includes('@lid')) {
-                realParticipants.push({
-                    id: idCounter++,
-                    name: 'Hidden Member',
-                    phone: '🔒 WA Privacy Hidden', // Ab fake number nahi dikhega
-                    isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
-                });
-            }
+            realParticipants.push({
+                id: idCounter++,
+                name: 'Group Member',
+                phone: `+${phoneStr}`,
+                isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
+            });
         }
 
         res.json({ success: true, members: realParticipants });
