@@ -2,29 +2,27 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const GroupTools = () => {
-  const [activeMode, setActiveMode] = useState('extract'); // 'extract' or 'send'
-  
-  // 🟢 Connection States
+  const [activeMode, setActiveMode] = useState('extract'); 
   const [waStatus, setWaStatus] = useState('checking'); 
-  const [connectionMode, setConnectionMode] = useState('api'); // 'api' or 'web'
+  const [connectionMode, setConnectionMode] = useState('api');
 
   // ==========================================
   // STATE: GROUP EXTRACTOR
   // ==========================================
-  const [extractMethod, setExtractMethod] = useState('parser');
+  // 🟢 NAYA MODE ADD KIYA: 'web'
+  const [extractMethod, setExtractMethod] = useState('web'); 
   const [groupLink, setGroupLink] = useState('');
   const [rawText, setRawText] = useState('');
   const [extractedData, setExtractedData] = useState([]);
   const [isFetching, setIsFetching] = useState(false);
+  const [selectedGroupToExtract, setSelectedGroupToExtract] = useState(''); // Extract ke liye selected group
 
   // ==========================================
   // STATE: GROUP SENDER & FETCHER
   // ==========================================
-  const [groups, setGroups] = useState([]); // Excel Groups
-  
-  // 🟢 NAYE STATES: Live Group Fetching ke liye
-  const [fetchedGroups, setFetchedGroups] = useState([]); // Asli groups from WA
-  const [selectedGroupIds, setSelectedGroupIds] = useState([]); // Jo user tick karega
+  const [groups, setGroups] = useState([]); 
+  const [fetchedGroups, setFetchedGroups] = useState([]); 
+  const [selectedGroupIds, setSelectedGroupIds] = useState([]); 
   const [isFetchingGroups, setIsFetchingGroups] = useState(false);
 
   const [message, setMessage] = useState("Hello everyone! Important update here.");
@@ -41,7 +39,7 @@ const GroupTools = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
-  // 0. 🔥 FIXED: PROPER API / WEB CONNECTION CHECK 🔥
+  // 0. CONNECTION CHECK
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
@@ -83,33 +81,79 @@ const GroupTools = () => {
 
 
   // ==========================================
+  // COMMON: FETCH GROUPS FROM WHATSAPP WEB
+  // ==========================================
+  const fetchMyGroups = async () => {
+    if (waStatus !== 'connected') return alert("❌ Your WhatsApp is not connected!");
+    if (connectionMode !== 'web') return alert("⚠️ This feature requires WhatsApp Web connection mode.");
+
+    setIsFetchingGroups(true);
+    try {
+        const res = await fetch(`${WA_ENGINE_URL}/api/wa-get-groups`);
+        const data = await res.json();
+        
+        if (data.success && data.groups && data.groups.length > 0) {
+            setFetchedGroups(data.groups);
+            alert(`✅ Successfully fetched ${data.groups.length} groups!`);
+        } else {
+            alert("❌ No groups found in your WhatsApp account.");
+        }
+    } catch (error) {
+        alert("⚠️ Backend Error! Make sure you updated server.js with the new group fetch routes.");
+    }
+    setIsFetchingGroups(false);
+  };
+
+
+  // ==========================================
   // LOGIC: EXTRACTOR
   // ==========================================
-  const handleApiFetch = async () => {
-    if (!groupLink.trim()) return alert("❌ Please enter a Group Link or ID!");
-    if (waStatus !== 'connected') return alert("❌ WhatsApp API is NOT connected!");
-    
-    setIsFetching(true);
-    setExtractedData([]);
 
+  // 🟢 NAYA FUNCTION: EXTRACT FROM LIVE GROUP
+  const extractMembersFromWebGroup = async () => {
+      if (!selectedGroupToExtract) return alert("❌ Please select a group from the list first.");
+      if (waStatus !== 'connected') return alert("❌ WhatsApp API is disconnected!");
+      
+      setIsFetching(true);
+      setExtractedData([]);
+
+      try {
+          const res = await fetch(`${WA_ENGINE_URL}/api/wa-get-group-members`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ groupId: selectedGroupToExtract })
+          });
+          
+          const data = await res.json();
+          if (data.success && data.members && data.members.length > 0) {
+              setExtractedData(data.members);
+          } else {
+              alert("❌ Could not fetch members. You might not be an active participant.");
+          }
+      } catch (err) {
+          alert(`❌ Extraction Error: Make sure your server.js is updated with the new routes.`);
+      }
+      setIsFetching(false);
+  };
+
+  const handleApiFetch = async () => {
+    if (!groupLink.trim()) return alert("❌ Please enter a Group Link!");
+    setIsFetching(true); setExtractedData([]);
     try {
       const res = await fetch(`${API_URL}/extract-group`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, group_id: groupLink })
       });
       if (!res.ok) throw new Error("API Gateway rejected the request.");
       const data = await res.json();
       if (data.members && data.members.length > 0) setExtractedData(data.members);
-      else alert("❌ No members found or Bot is not in this group.");
-    } catch (err) {
-      alert(`❌ API Error: ${err.message}`);
-    }
+      else alert("❌ No members found.");
+    } catch (err) { alert(`❌ API Error: ${err.message}`); }
     setIsFetching(false);
   };
 
   const handleParseText = () => {
-    if (!rawText.trim()) return alert("❌ Please paste some WhatsApp group text first!");
+    if (!rawText.trim()) return alert("❌ Please paste some text first!");
     const phoneRegex = /\+?\d{1,4}[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/g;
     const foundNumbers = rawText.match(phoneRegex);
 
@@ -119,9 +163,7 @@ const GroupTools = () => {
         id: index + 1, name: `Contact ${index + 1}`, phone: num, isAdmin: false
       }));
       setExtractedData(formattedData);
-    } else {
-      alert("❌ No real phone numbers found.");
-    }
+    } else alert("❌ No real phone numbers found.");
   };
 
   const handleExportExcel = () => {
@@ -145,7 +187,7 @@ const GroupTools = () => {
   };
 
   // ==========================================
-  // LOGIC: GROUP SENDER & LIVE FETCHING
+  // LOGIC: GROUP SENDER 
   // ==========================================
   const handleGroupUpload = (e) => {
     const uploadedFile = e.target.files[0];
@@ -182,29 +224,6 @@ const GroupTools = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
-  // 🟢 NAYA FUNCTION: REAL WHATSAPP GROUPS FETCH KAREGA
-  const fetchMyGroups = async () => {
-    if (waStatus !== 'connected') return alert("❌ Your WhatsApp is not connected!");
-    if (connectionMode !== 'web') return alert("⚠️ This feature works best with WhatsApp Web mode. Please switch in Settings.");
-
-    setIsFetchingGroups(true);
-    try {
-        // Backend Render Server ko hit karega groups lane ke liye
-        const res = await fetch(`${WA_ENGINE_URL}/api/wa-get-groups`);
-        const data = await res.json();
-        
-        if (data.success && data.groups && data.groups.length > 0) {
-            setFetchedGroups(data.groups); // Expecting array of { id: '123@g.us', name: 'Group Name' }
-            alert(`✅ Successfully fetched ${data.groups.length} groups!`);
-        } else {
-            alert("❌ No groups found in your WhatsApp account.");
-        }
-    } catch (error) {
-        alert("⚠️ Error fetching groups from server. Ensure your WhatsApp Web engine is running.");
-    }
-    setIsFetchingGroups(false);
-  };
-
   const toggleGroupSelection = (groupId) => {
       setSelectedGroupIds(prev => 
           prev.includes(groupId) ? prev.filter(id => id !== groupId) : [...prev, groupId]
@@ -213,19 +232,15 @@ const GroupTools = () => {
 
   const selectAllGroups = () => {
       if (selectedGroupIds.length === fetchedGroups.length) {
-          setSelectedGroupIds([]); // Deselect all
+          setSelectedGroupIds([]); 
       } else {
-          setSelectedGroupIds(fetchedGroups.map(g => g.id)); // Select all
+          setSelectedGroupIds(fetchedGroups.map(g => g.id)); 
       }
   };
 
   const startGroupCampaign = async () => {
-    // 🟢 Dono list mila kar check karo
     const finalTargets = [];
-    
-    // Add Excel Groups
     groups.forEach(g => finalTargets.push({ id: g.link, name: g.name }));
-    // Add Live Fetched Groups
     fetchedGroups.filter(g => selectedGroupIds.includes(g.id)).forEach(g => {
         finalTargets.push({ id: g.id, name: g.name });
     });
@@ -265,16 +280,8 @@ const GroupTools = () => {
         let res;
         if (connectionMode === 'web') {
            res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({
-               target: group.id, // group ID like 12345@g.us
-               text: message,
-               isGroup: true, // Tell backend it's a group
-               mediaBase64: rawBase64MediaData, 
-               mediaType: mimeType,           
-               fileName: originalFileName     
-             })
+             method: 'POST', headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ target: group.id, text: message, isGroup: true, mediaBase64: rawBase64MediaData, mediaType: mimeType, fileName: originalFileName })
            });
         } else {
            res = await fetch(`${API_URL}/send-message`, {
@@ -318,10 +325,10 @@ const GroupTools = () => {
         </h2>
         <div className="flex bg-[#0f172a] p-1 rounded-lg border border-gray-600 w-full sm:w-auto">
           <button onClick={() => setActiveMode('extract')} className={`flex-1 sm:flex-none px-3 md:px-5 py-1.5 md:py-2 rounded-md text-[10px] md:text-xs font-bold transition-all ${activeMode === 'extract' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
-            🔍 Extract
+            🔍 Extract Contacts
           </button>
           <button onClick={() => setActiveMode('send')} className={`flex-1 sm:flex-none px-3 md:px-5 py-1.5 md:py-2 rounded-md text-[10px] md:text-xs font-bold transition-all ${activeMode === 'send' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
-            🚀 Send
+            🚀 Send Message
           </button>
         </div>
       </div>
@@ -331,21 +338,63 @@ const GroupTools = () => {
       {/* ======================================================== */}
       {activeMode === 'extract' && (
         <div className="flex flex-col lg:flex-row gap-4 md:gap-6 flex-1 overflow-y-auto lg:overflow-hidden">
+          
           {/* Left: Input Modes */}
           <div className="w-full lg:w-[400px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0">
+            
+            {/* Mode Selection */}
             <div className="flex bg-[#1e293b] border border-gray-700 rounded-xl p-1 shadow-md">
-               <button onClick={() => setExtractMethod('api')} className={`flex-1 py-2 md:py-2.5 rounded-lg text-[10px] md:text-xs font-bold transition-all ${extractMethod === 'api' ? 'bg-[#0f172a] text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>🔗 Link (API)</button>
-               <button onClick={() => setExtractMethod('parser')} className={`flex-1 py-2 md:py-2.5 rounded-lg text-[10px] md:text-xs font-bold transition-all ${extractMethod === 'parser' ? 'bg-[#0f172a] text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>📝 Parser (Free)</button>
+               <button onClick={() => setExtractMethod('web')} className={`flex-1 py-2 rounded-lg text-[9px] md:text-xs font-bold transition-all ${extractMethod === 'web' ? 'bg-[#0f172a] text-fuchsia-400 border border-fuchsia-500/50' : 'text-gray-500 hover:text-gray-300'}`}>📱 Web Fetch</button>
+               <button onClick={() => setExtractMethod('api')} className={`flex-1 py-2 rounded-lg text-[9px] md:text-xs font-bold transition-all ${extractMethod === 'api' ? 'bg-[#0f172a] text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>🔗 Link (API)</button>
+               <button onClick={() => setExtractMethod('parser')} className={`flex-1 py-2 rounded-lg text-[9px] md:text-xs font-bold transition-all ${extractMethod === 'parser' ? 'bg-[#0f172a] text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>📝 Paste Text</button>
             </div>
-            {extractMethod === 'api' ? (
+
+            {/* Input Area Based on Mode */}
+            {extractMethod === 'web' ? (
+              <div className="bg-[#1e293b] border border-gray-700 rounded-xl p-4 md:p-5 shadow-md animate-fade-in flex flex-col gap-3 flex-1">
+                 <div>
+                    <h3 className="text-white font-bold text-xs md:text-sm mb-1">Direct Web Extractor</h3>
+                    <p className="text-[9px] md:text-[10px] text-gray-400 mb-3">Load groups directly from your connected WhatsApp and extract members with one click.</p>
+                 </div>
+
+                 {fetchedGroups.length === 0 ? (
+                     <button onClick={fetchMyGroups} disabled={isFetchingGroups} className="w-full bg-[#0f172a] border border-gray-600 hover:border-emerald-500 text-white py-4 rounded-xl font-bold shadow-lg transition-all text-xs md:text-sm flex flex-col items-center justify-center gap-2">
+                         <span className="text-2xl">📱</span>
+                         {isFetchingGroups ? '⏳ Loading Groups from Phone...' : 'Load My WhatsApp Groups'}
+                     </button>
+                 ) : (
+                     <div className="flex flex-col flex-1 border border-gray-700 rounded-xl overflow-hidden bg-[#0f172a]">
+                         <div className="p-2 border-b border-gray-700 bg-gray-800/50">
+                             <span className="text-[10px] text-green-400 font-bold">✅ Choose a group to extract from:</span>
+                         </div>
+                         <div className="flex-1 overflow-y-auto p-1 custom-scrollbar max-h-[250px]">
+                             {fetchedGroups.map(grp => (
+                                 <div 
+                                     key={grp.id} 
+                                     onClick={() => setSelectedGroupToExtract(grp.id)}
+                                     className={`p-2.5 rounded-lg cursor-pointer border mb-1 transition-all flex items-center justify-between ${selectedGroupToExtract === grp.id ? 'bg-fuchsia-600/20 border-fuchsia-500 text-white' : 'border-transparent text-gray-400 hover:bg-white/5'}`}
+                                 >
+                                     <span className="text-xs truncate font-medium">{grp.name}</span>
+                                     {selectedGroupToExtract === grp.id && <span className="text-fuchsia-400 text-xs">✓</span>}
+                                 </div>
+                             ))}
+                         </div>
+                     </div>
+                 )}
+
+                 <button onClick={extractMembersFromWebGroup} disabled={isFetching || !selectedGroupToExtract} className="w-full mt-auto bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-[1.02] text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 text-xs md:text-sm">
+                    {isFetching ? '⏳ Extracting Members...' : 'Extract Selected Group ⚡'}
+                 </button>
+              </div>
+            ) : extractMethod === 'api' ? (
               <div className="bg-[#1e293b] border border-gray-700 rounded-xl p-4 md:p-5 shadow-md animate-fade-in flex flex-col gap-3 md:gap-4">
                  <div>
                     <h3 className="text-white font-bold text-xs md:text-sm mb-1">Group Link / ID</h3>
-                    <p className="text-[9px] md:text-[10px] text-gray-400 mb-2 md:mb-3">Requires a paid API config in Settings.</p>
+                    <p className="text-[9px] md:text-[10px] text-gray-400 mb-2 md:mb-3">Requires a paid Cloud API config in Settings.</p>
                     <input type="text" value={groupLink} onChange={(e) => setGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/..." className="w-full bg-[#0f172a] border border-gray-600 rounded-lg p-2.5 md:p-3 text-xs md:text-sm text-white outline-none focus:border-fuchsia-500" />
                  </div>
-                 <button onClick={handleApiFetch} disabled={isFetching} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-[1.02] text-white py-2.5 md:py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 text-xs md:text-sm">
-                    {isFetching ? '⏳ Querying API...' : 'Fetch via API ⚡'}
+                 <button onClick={handleApiFetch} disabled={isFetching} className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2.5 md:py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 text-xs md:text-sm">
+                    {isFetching ? '⏳ Querying API...' : 'Fetch via Link'}
                  </button>
               </div>
             ) : (
@@ -355,15 +404,15 @@ const GroupTools = () => {
                     <p className="text-[9px] md:text-[10px] text-gray-400 mb-1 md:mb-2">Paste copied text from WhatsApp Web Group Info.</p>
                  </div>
                  <textarea value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="Paste copied text here..." className="flex-1 w-full min-h-[150px] lg:min-h-0 bg-[#0f172a] border border-gray-600 rounded-lg p-2.5 md:p-3 text-white outline-none focus:border-fuchsia-500 resize-none font-mono text-[10px] md:text-xs custom-scrollbar"></textarea>
-                 <button onClick={handleParseText} className="w-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-[1.02] text-white py-2.5 md:py-3 rounded-xl font-bold shadow-lg transition-all text-xs md:text-sm">
-                    Clean & Extract
+                 <button onClick={handleParseText} className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2.5 md:py-3 rounded-xl font-bold shadow-lg transition-all text-xs md:text-sm">
+                    Clean & Parse Text
                  </button>
               </div>
             )}
           </div>
 
           {/* Right: Output Table */}
-          <div className="flex-1 bg-[#1e293b] border border-gray-700 rounded-xl flex flex-col shadow-md overflow-hidden min-h-[300px] lg:min-h-0">
+          <div className="flex-1 bg-[#1e293b] border border-gray-700 rounded-xl flex flex-col shadow-md overflow-hidden min-h-[350px] lg:min-h-0">
             <div className="p-3 border-b border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#0f172a] gap-2 sm:gap-0">
               <h3 className="text-white font-bold text-xs md:text-sm">Extracted Members ({extractedData.length})</h3>
               <div className="flex gap-2 w-full sm:w-auto">
@@ -399,7 +448,7 @@ const GroupTools = () => {
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 2: SEND TO GROUPS (🔥 NOW WITH LIVE FETCH 🔥) */}
+      {/* VIEW 2: SEND TO GROUPS */}
       {/* ======================================================== */}
       {activeMode === 'send' && (
          <div className="flex flex-col lg:flex-row gap-4 flex-1 overflow-y-auto lg:overflow-hidden">
@@ -407,19 +456,13 @@ const GroupTools = () => {
          {/* Left Column: Setup */}
          <div className="w-full lg:w-[400px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0">
            
-           {/* 🟢 NEW: LIVE FETCH GROUPS SECTION 🟢 */}
+           {/* 🟢 LIVE FETCH GROUPS SECTION 🟢 */}
            <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md">
-             <div className="flex justify-between items-center mb-2">
+             <div className="flex justify-between items-center mb-3">
                  <h3 className="text-white font-bold text-xs md:text-sm">1. Select Destination Groups</h3>
-                 <span className="text-[10px] text-fuchsia-400 font-bold bg-fuchsia-500/10 px-2 py-1 rounded">Total: {groups.length + selectedGroupIds.length}</span>
-             </div>
-
-             {/* Tab Switcher inside Setup */}
-             <div className="flex gap-2 mb-3">
-                <button className="flex-1 bg-[#0f172a] border border-fuchsia-500 text-fuchsia-400 text-[10px] py-1.5 rounded font-bold">From WhatsApp</button>
+                 <span className="text-[10px] text-fuchsia-400 font-bold bg-fuchsia-500/10 px-2 py-1 rounded">Total Selected: {groups.length + selectedGroupIds.length}</span>
              </div>
              
-             {/* The Live Fetcher Box */}
              <div className="bg-[#0f172a] rounded-lg border border-gray-600 p-3 mb-3 flex flex-col relative overflow-hidden">
                  {fetchedGroups.length === 0 ? (
                      <div className="text-center py-4">
@@ -434,7 +477,7 @@ const GroupTools = () => {
                      <div className="flex flex-col h-[200px]">
                          <div className="flex justify-between items-center mb-2 pb-2 border-b border-gray-700">
                              <span className="text-[10px] text-green-400 font-bold">✅ Found {fetchedGroups.length} Groups</span>
-                             <button onClick={selectAllGroups} className="text-[10px] text-fuchsia-400 hover:text-white transition-all">
+                             <button onClick={selectAllGroups} className="text-[10px] text-fuchsia-400 hover:text-white transition-all bg-fuchsia-500/10 px-2 py-1 rounded">
                                  {selectedGroupIds.length === fetchedGroups.length ? 'Deselect All' : 'Select All'}
                              </button>
                          </div>
@@ -455,7 +498,7 @@ const GroupTools = () => {
                  )}
              </div>
 
-             <div className="relative flex items-center justify-center my-3">
+             <div className="relative flex items-center justify-center my-4">
                  <div className="border-t border-gray-600 w-full"></div>
                  <span className="bg-[#1e293b] px-3 text-[10px] text-gray-500 absolute font-bold uppercase">OR</span>
              </div>
@@ -467,23 +510,20 @@ const GroupTools = () => {
              </div>
            </div>
 
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md">
-              <h3 className="text-white font-bold text-xs md:text-sm mb-2">2. Attach Media (Optional)</h3>
-              <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
-                 <input type="file" accept="*/*" onChange={(e) => setMedia(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                 <p className="text-xl mb-1">📎</p>
-                 <p className="text-[9px] md:text-[10px] text-gray-400 truncate px-2">{media ? media.name : "Any File / Image"}</p>
-               </div>
-           </div>
-
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-1 flex flex-col min-h-[150px]">
-             <h3 className="text-white font-bold text-xs md:text-sm mb-2">3. Message Text</h3>
+           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-1 flex flex-col min-h-[220px]">
+             <h3 className="text-white font-bold text-xs md:text-sm mb-2">2. Compose Message</h3>
              <textarea 
                value={message}
                onChange={(e) => setMessage(e.target.value)}
-               className="flex-1 w-full min-h-[100px] bg-[#0f172a] border border-gray-600 rounded-lg p-3 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar"
+               className="flex-1 w-full min-h-[80px] bg-[#0f172a] border border-gray-600 rounded-lg p-3 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar mb-3"
                placeholder="Type group message here..."
              ></textarea>
+             <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
+                 <input type="file" accept="*/*" onChange={(e) => setMedia(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                 <span className="text-[10px] md:text-xs text-gray-300 truncate px-2 font-bold flex items-center justify-center gap-2">
+                    <span className="text-lg">📎</span> {media ? media.name : "Attach Image / PDF"}
+                 </span>
+             </div>
            </div>
 
          </div>
