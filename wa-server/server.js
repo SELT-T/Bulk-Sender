@@ -155,7 +155,7 @@ app.get('/api/wa-get-groups', async (req, res) => {
     } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
 
-// 🟢 3. EXTRACT GROUP MEMBERS API (UPDATED FOR LID PRIVACY)
+// 🟢 3. EXTRACT GROUP MEMBERS API (STRICT REAL NUMBERS ONLY)
 app.post('/api/wa-get-group-members', async (req, res) => {
     try {
         const { groupId } = req.body;
@@ -165,27 +165,39 @@ app.post('/api/wa-get-group-members', async (req, res) => {
         const groupMetadata = await sock.groupMetadata(groupId);
         if (!groupMetadata || !groupMetadata.participants) return res.status(404).json({ success: false, error: 'No data.' });
 
-        const participants = groupMetadata.participants.map((p, index) => {
+        const realParticipants = [];
+        let idCounter = 1;
+
+        for (let p of groupMetadata.participants) {
             const rawId = p.id || '';
-            let phoneStr = rawId.split('@')[0];
-            
-            // 🔥 WHATSAPP PRIVACY CHECK (Agar number hidden hai to ye chalega)
-            if (rawId.includes('@lid')) {
-                phoneStr = `Hidden by WA (LID: ${phoneStr})`; 
-            } else {
-                phoneStr = `+${phoneStr}`;
+            let phoneStr = '';
+            let nameStr = 'Group Member';
+
+            // ✅ Agar sach mein REAL number hai
+            if (rawId.includes('@s.whatsapp.net')) {
+                phoneStr = `+${rawId.split('@')[0]}`;
+                realParticipants.push({
+                    id: idCounter++,
+                    name: nameStr,
+                    phone: phoneStr,
+                    isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
+                });
+            } 
+            // 🔒 Agar WhatsApp ne number chhupa diya hai (Community Group Privacy)
+            else if (rawId.includes('@lid')) {
+                realParticipants.push({
+                    id: idCounter++,
+                    name: 'Hidden Member',
+                    phone: '🔒 WA Privacy Hidden', // Ab fake number nahi dikhega
+                    isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
+                });
             }
+        }
 
-            return {
-                id: index + 1, 
-                name: 'Group Member', 
-                phone: phoneStr, 
-                isAdmin: p.admin === 'admin' || p.admin === 'superadmin'
-            };
-        });
-
-        res.json({ success: true, members: participants });
-    } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+        res.json({ success: true, members: realParticipants });
+    } catch (error) { 
+        res.status(500).json({ success: false, error: error.message }); 
+    }
 });
 
 const PORT = process.env.PORT || 3001;
