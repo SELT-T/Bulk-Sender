@@ -13,11 +13,12 @@ import Login from './pages/Login';
 import Profile from './pages/Profile';
 import Signup from './pages/Signup';
 import PersonalizedSender from './pages/PersonalizedSender';
-// ✅ 1. Naya Google Map Scraper page yahan import kiya hai
 import GmapScraper from './pages/GmapScraper';
 
+// 👑 NEW: Admin Panel Page
+import AdminPanel from './pages/AdminPanel';
+
 function App() {
-  // YADDASHT FIX: Shuruat mein hi check karo ki purana user saved hai kya?
   const [user, setUser] = useState(() => {
     const savedUser = localStorage.getItem('reachify_user');
     return savedUser ? JSON.parse(savedUser) : null;
@@ -26,10 +27,9 @@ function App() {
   const [activePage, setActivePage] = useState('dashboard');
   const [authMode, setAuthMode] = useState('login');
   
-  // 🟢 NAYA STATE: Mobile Sidebar control karne ke liye
+  // Mobile Sidebar control
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Jab bhi User login/logout ho, use Memory (LocalStorage) mein save karo
   useEffect(() => {
     if (user) {
       localStorage.setItem('reachify_user', JSON.stringify(user));
@@ -38,17 +38,32 @@ function App() {
     }
   }, [user]);
 
-  // Logout Function
   const handleLogout = () => {
     setUser(null);
     setAuthMode('login');
-    // localStorage useEffect se apne aap clear ho jayega
   };
 
-  // Agar user login nahi hai, to Login Screen dikhao
+  // Login Screen
   if (!user) {
     if (authMode === 'signup') return <Signup switchToLogin={() => setAuthMode('login')} />;
     return <Login onLogin={setUser} switchToSignup={() => setAuthMode('signup')} />;
+  }
+
+  // Pending Status Check (Sirf approved logo ko aandar aane dega)
+  // Agar Admin ne ban ya pending rakha hai, toh ye dikhega
+  if (user.role !== 'admin' && user.status !== 'approved') {
+      return (
+          <div className="min-h-screen flex flex-col items-center justify-center bg-[#0f172a] p-4 text-center">
+              <div className="bg-[#1e293b] p-8 rounded-2xl border border-gray-700 shadow-2xl max-w-md">
+                 <span className="text-6xl block mb-4">⏳</span>
+                 <h2 className="text-2xl font-bold text-white mb-2">Account Pending</h2>
+                 <p className="text-gray-400 mb-6">Your account is currently waiting for Administrator approval. Please check back later.</p>
+                 <button onClick={handleLogout} className="bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-bold py-2 px-6 rounded-lg transition-all">
+                    Logout
+                 </button>
+              </div>
+          </div>
+      );
   }
 
   const renderPage = () => {
@@ -61,24 +76,24 @@ function App() {
       case 'settings': return <Settings />;
       case 'profile': return <Profile user={user} onLogout={handleLogout} />;
       case 'personalized': return <PersonalizedSender />;
-      // ✅ 2. Yahan naya Google Map Scraper ka route set kar diya hai
       case 'gmap-scraper': return <GmapScraper />;
+      // 👑 NEW: Admin Panel Route
+      case 'admin-panel': return <AdminPanel />;
       default: return <Dashboard setActivePage={setActivePage} />;
     }
   };
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0f172a]">
-      {/* 🟢 Sidebar ko open/close state pass ki */}
       <Sidebar 
         activePage={activePage} 
         setActivePage={setActivePage} 
         isOpen={isSidebarOpen} 
         setIsOpen={setIsSidebarOpen} 
+        userRole={user?.role} // 👑 Passing role to hide/show Admin button in Sidebar
       />
       
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* 🟢 Topbar ko toggle function pass kiya taaki button daba sakein */}
         <Topbar 
           user={user} 
           setActivePage={setActivePage} 
@@ -86,7 +101,6 @@ function App() {
           toggleSidebar={() => setIsSidebarOpen(true)}
         />
         
-        {/* 🟢 Mobile me thodi kam padding rakhi (p-2/p-4) aur PC me (md:p-6) */}
         <main className="flex-1 overflow-y-auto p-2 md:p-6 transition-all duration-300">
           {renderPage()}
         </main>
