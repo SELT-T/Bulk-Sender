@@ -137,7 +137,7 @@ const PersonalizedSender = () => {
     if (file && file.type.startsWith('image/')) {
       setMediaFile(file);
       setMediaPreview(URL.createObjectURL(file));
-      setShowSticker(true); // Automatically turn on sticker when image is uploaded
+      // setShowSticker(true) hataya hai yahan se kyuki default tab open hi rehta hai par state nahi hai.
     } else {
       alert("❌ Pro Studio only accepts Image files (.jpg, .png).");
     }
@@ -217,6 +217,10 @@ const PersonalizedSender = () => {
 
   const handleMouseMove = (e) => {
     if ((!isDragging && !isResizing) || !imageContainerRef.current) return;
+    
+    // Prevent default touch behavior on mobile while dragging
+    if (e.touches && e.cancelable) e.preventDefault();
+
     const rect = imageContainerRef.current.getBoundingClientRect();
     const clientX = e.clientX || e.touches?.[0].clientX;
     const clientY = e.clientY || e.touches?.[0].clientY;
@@ -228,7 +232,7 @@ const PersonalizedSender = () => {
     } else if (isResizing) {
       const stickerCenterX = (stickerPos.x / 100) * rect.width + rect.left;
       const newWidth = Math.abs(clientX - stickerCenterX) * 2;
-      setStickerWidth(Math.max(120, Math.min(newWidth, rect.width * 0.95))); 
+      setStickerWidth(Math.max(100, Math.min(newWidth, rect.width * 0.95))); 
     }
   };
 
@@ -362,7 +366,8 @@ const PersonalizedSender = () => {
 
         // Custom Sticker ke sath Image Ready karo
         let finalMediaToSend = rawBase64MediaData;
-        if (connectionMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
+        // This page relies on the dynamic builder. Since 'showSticker' toggle was removed, it defaults to drawing the text.
+        if (connectionMode === 'web' && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
         }
 
@@ -372,7 +377,7 @@ const PersonalizedSender = () => {
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
                target: contact.phone,
-               text: personalizedMsg, // 🟢 CAPTION AB YAHAN SE BHI JAYEGA
+               text: personalizedMsg, 
                isGroup: false,
                mediaBase64: finalMediaToSend, 
                mediaType: mimeType,           
@@ -382,7 +387,7 @@ const PersonalizedSender = () => {
         } else {
            const payload = {
              email: user.email, phone: contact.phone, message: personalizedMsg, media_type: 'image',
-             sticker_config: (showSticker && mediaFile?.type.startsWith('image')) ? { 
+             sticker_config: (mediaFile?.type.startsWith('image')) ? { 
                  name: { text: contact.name, font: nameFont, size: nameSize, color: nameColor, outline: nameOutline, weight: nameWeight, style: nameStyle },
                  sub: { text: subText, font: subFont, size: subSize, color: subColor, outline: subOutline, weight: subWeight, style: subStyle },
                  box: { bg: boxBg, border: boxBorder, radius: boxRadius, padding: boxPadding, width: stickerWidth },
@@ -421,55 +426,57 @@ const PersonalizedSender = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] max-w-[1400px] mx-auto p-2 animate-fade-in" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
+    // 🔥 MOBILE WRAPPER FIX: Changed from fixed h to min-h for scrolling
+    <div className="flex flex-col h-auto min-h-screen lg:min-h-[calc(100vh-80px)] lg:h-[calc(100vh-80px)] max-w-[1400px] mx-auto p-2 md:p-4 animate-fade-in pb-20 lg:pb-0" 
+         onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
       
       {/* HEADER */}
-      <div className="flex justify-between items-center bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-xl mb-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-xl mb-4 gap-3 md:gap-0">
          <div>
-            <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+            <h2 className="text-xl md:text-2xl font-bold text-white flex items-center gap-2 md:gap-3">
                🎨 Pro Graphic Studio
-               {waStatus === 'checking' && <span className="text-xs text-yellow-400">Checking...</span>}
-               {waStatus === 'sleeping' && <span className="text-xs text-yellow-500 animate-pulse">Server Asleep</span>}
-               {waStatus === 'connected' && <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[10px] text-green-400">{connectionMode === 'web' ? 'Web Linked' : 'API Linked'}</span>}
-               {waStatus === 'disconnected' && <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[10px] text-red-400">API Disconnected</span>}
+               {waStatus === 'checking' && <span className="text-[10px] md:text-xs text-yellow-400">Checking...</span>}
+               {waStatus === 'sleeping' && <span className="text-[10px] md:text-xs text-yellow-500 animate-pulse">Server Asleep</span>}
+               {waStatus === 'connected' && <span className="px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[9px] md:text-[10px] text-green-400">{connectionMode === 'web' ? 'Web Linked' : 'API Linked'}</span>}
+               {waStatus === 'disconnected' && <span className="px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[9px] md:text-[10px] text-red-400">API Disconnected</span>}
             </h2>
          </div>
-         <div className="flex items-center gap-4">
-            <div className="bg-[#0f172a] px-3 py-1.5 rounded-lg border border-gray-600 flex items-center gap-2">
-              <span className="text-gray-400 text-xs">Delay:</span>
-              <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 bg-transparent text-white font-bold text-center outline-none text-sm" />
+         <div className="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
+            <div className="bg-[#0f172a] px-3 py-1.5 rounded-lg border border-gray-600 flex items-center gap-2 flex-1 md:flex-none justify-center">
+              <span className="text-gray-400 text-[10px] md:text-xs">Delay:</span>
+              <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 md:w-10 bg-transparent text-white font-bold text-center outline-none text-xs md:text-sm" />
             </div>
             {campaignState === 'running' ? (
-               <button onClick={() => stopRef.current = true} className="bg-red-600 hover:bg-red-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg transition-all">⏹ Stop Blast</button>
+               <button onClick={() => stopRef.current = true} className="flex-1 md:flex-none bg-red-600 hover:bg-red-500 text-white px-4 md:px-6 py-2 md:py-2.5 rounded-xl font-bold shadow-lg transition-all text-xs md:text-base">⏹ Stop</button>
             ) : (
-               <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview || waStatus !== 'connected'} className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                 🚀 Start Auto-Blast
+               <button onClick={startBlast} disabled={contacts.length === 0 || !mediaPreview || waStatus !== 'connected'} className="flex-1 md:flex-none bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white px-4 md:px-8 py-2 md:py-2.5 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed text-xs md:text-base">
+                 🚀 Auto-Blast
                </button>
             )}
          </div>
       </div>
 
-      <div className="flex-1 flex gap-4 overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-y-auto lg:overflow-hidden custom-scrollbar">
         
         {/* LEFT: ADVANCED TOOLS PANEL */}
-        <div className="w-[340px] flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar pb-4">
+        <div className="w-full lg:w-[340px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 flex-shrink-0 lg:pb-4">
             
            {/* Step 1 & 2: Uploads */}
-           <div className="grid grid-cols-2 gap-3 flex-shrink-0">
+           <div className="grid grid-cols-2 gap-2 md:gap-3 flex-shrink-0">
              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
-               <h3 className="text-white font-bold text-[11px] mb-2">1. Base Image</h3>
+               <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2">1. Base Image</h3>
                <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500">
                  <input type="file" accept="image/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0" />
-                 <p className="text-lg">🖼️</p>
-                 <p className="text-[9px] text-gray-400 truncate">{mediaFile ? mediaFile.name : "Upload Image"}</p>
+                 <p className="text-base md:text-lg">🖼️</p>
+                 <p className="text-[8px] md:text-[9px] text-gray-400 truncate">{mediaFile ? mediaFile.name : "Upload Image"}</p>
                </div>
              </div>
              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
-               <h3 className="text-white font-bold text-[11px] mb-2">2. Excel List</h3>
+               <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2">2. Excel List</h3>
                <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500">
                  <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0" />
-                 <p className="text-lg">📊</p>
-                 <p className="text-[9px] text-gray-400">{contacts.length > 0 ? `${contacts.length} Ready` : "Upload List"}</p>
+                 <p className="text-base md:text-lg">📊</p>
+                 <p className="text-[8px] md:text-[9px] text-gray-400">{contacts.length > 0 ? `${contacts.length} Ready` : "Upload List"}</p>
                </div>
              </div>
            </div>
@@ -478,33 +485,31 @@ const PersonalizedSender = () => {
            {contacts.length > 0 && (
               <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 animate-fade-in-up">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-bold text-green-400">✅ {contacts.length} Contacts Loaded</span>
-                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">
-                    {showContactPreview ? 'Hide List ▲' : 'View List ▼'}
+                  <span className="text-[10px] md:text-xs font-bold text-green-400">✅ {contacts.length} Contacts</span>
+                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[9px] md:text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">
+                    {showContactPreview ? 'Hide ▲' : 'View ▼'}
                   </button>
                 </div>
                 
                 {showContactPreview && (
                   <div className="animate-fade-in">
-                    {/* Country Code Fixer */}
                     <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
-                      <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">Add Code: +</span>
+                      <span className="text-[9px] md:text-[10px] text-gray-400 font-bold whitespace-nowrap">Add Code: +</span>
                       <input 
                         type="text" 
                         value={countryCode} 
                         onChange={e => setCountryCode(e.target.value)} 
-                        className="w-8 bg-transparent text-white text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" 
+                        className="w-8 bg-transparent text-white text-[10px] md:text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" 
                         placeholder="91"
                       />
-                      <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[10px] rounded font-bold py-1.5 transition-all">
+                      <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[9px] md:text-[10px] rounded font-bold py-1.5 transition-all">
                         Apply to All
                       </button>
                     </div>
 
-                    {/* Scrollable List */}
                     <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner custom-scrollbar">
                       {contacts.map((c, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-[10px] border-b border-gray-800 pb-1">
+                        <div key={idx} className="flex justify-between items-center text-[9px] md:text-[10px] border-b border-gray-800 pb-1">
                           <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
                           <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
                         </div>
@@ -517,46 +522,46 @@ const PersonalizedSender = () => {
 
            {/* Step 3: THE ULTIMATE STYLING ENGINE */}
            {mediaPreview && (
-             <div className="bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col overflow-hidden max-h-[300px]">
+             <div className="bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col overflow-hidden lg:max-h-[300px]">
                {/* TABS */}
                <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
-                  <button onClick={()=>setActiveTab('name')} className={`flex-1 py-2 text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name Tag</button>
-                  <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-2 text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
-                  <button onClick={()=>setActiveTab('box')} className={`flex-1 py-2 text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box Design</button>
+                  <button onClick={()=>setActiveTab('name')} className={`flex-1 py-1.5 md:py-2 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name</button>
+                  <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-1.5 md:py-2 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
+                  <button onClick={()=>setActiveTab('box')} className={`flex-1 py-1.5 md:py-2 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box</button>
                </div>
 
                {/* TAB CONTENTS */}
-               <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+               <div className="p-3 md:p-4 space-y-3 md:space-y-4 overflow-y-auto custom-scrollbar flex-1">
                   {/* --- NAME TAB --- */}
                   {activeTab === 'name' && (
-                     <div className="space-y-4 animate-fade-in">
+                     <div className="space-y-3 md:space-y-4 animate-fade-in">
                         <div>
-                          <label className="text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
+                          <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
                           <input type="range" min="12" max="72" value={nameSize} onChange={e=>setNameSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-2 md:gap-3">
                            <div>
-                             <label className="text-[10px] text-gray-400 block mb-1">Font Family</label>
-                             <select value={nameFont} onChange={e=>setNameFont(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                             <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Font Family</label>
+                             <select value={nameFont} onChange={e=>setNameFont(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[9px] md:text-[11px] text-white outline-none">
                                 {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                              </select>
                            </div>
                            <div>
-                             <label className="text-[10px] text-gray-400 block mb-1">Format</label>
+                             <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Format</label>
                              <div className="flex gap-1">
-                                <button onClick={() => setNameWeight(nameWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-xs font-bold ${nameWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>B</button>
-                                <button onClick={() => setNameStyle(nameStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-xs italic ${nameStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>I</button>
+                                <button onClick={() => setNameWeight(nameWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[10px] md:text-xs font-bold ${nameWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>B</button>
+                                <button onClick={() => setNameStyle(nameStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[10px] md:text-xs italic ${nameStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>I</button>
                              </div>
                            </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-2 md:gap-3">
                           <div>
-                            <label className="text-[10px] text-gray-400 block mb-1">Text Color</label>
-                            <input type="color" value={nameColor} onChange={e=>setNameColor(e.target.value)} className="w-full h-8 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                            <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Text Color</label>
+                            <input type="color" value={nameColor} onChange={e=>setNameColor(e.target.value)} className="w-full h-6 md:h-8 rounded cursor-pointer bg-transparent border border-gray-600"/>
                           </div>
                           <div>
-                            <label className="text-[10px] text-gray-400 block mb-1">Border (Outline)</label>
-                            <select value={nameOutline} onChange={e=>setNameOutline(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                            <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Border (Outline)</label>
+                            <select value={nameOutline} onChange={e=>setNameOutline(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[9px] md:text-[11px] text-white outline-none">
                                {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                           </div>
@@ -566,38 +571,38 @@ const PersonalizedSender = () => {
 
                   {/* --- SUB-TEXT TAB --- */}
                   {activeTab === 'sub' && (
-                     <div className="space-y-4 animate-fade-in">
+                     <div className="space-y-3 md:space-y-4 animate-fade-in">
                         <div>
-                          <label className="text-[10px] text-gray-400 block mb-1">Sub-Text Content</label>
-                          <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#0f172a] border border-gray-600 rounded p-2 text-xs text-white outline-none focus:border-fuchsia-500"/>
+                          <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Sub-Text</label>
+                          <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 md:p-2 text-[10px] md:text-xs text-white outline-none focus:border-fuchsia-500"/>
                         </div>
                         <div>
-                          <label className="text-[10px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
+                          <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
                           <input type="range" min="10" max="48" value={subSize} onChange={e=>setSubSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-2 md:gap-3">
                            <div>
-                             <label className="text-[10px] text-gray-400 block mb-1">Font Family</label>
-                             <select value={subFont} onChange={e=>setSubFont(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                             <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Font Family</label>
+                             <select value={subFont} onChange={e=>setSubFont(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[9px] md:text-[11px] text-white outline-none">
                                 {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                              </select>
                            </div>
                            <div>
-                             <label className="text-[10px] text-gray-400 block mb-1">Format</label>
+                             <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Format</label>
                              <div className="flex gap-1">
-                                <button onClick={() => setSubWeight(subWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-xs font-bold ${subWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>B</button>
-                                <button onClick={() => setSubStyle(subStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-xs italic ${subStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>I</button>
+                                <button onClick={() => setSubWeight(subWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[10px] md:text-xs font-bold ${subWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>B</button>
+                                <button onClick={() => setSubStyle(subStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[10px] md:text-xs italic ${subStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#0f172a] border-gray-600 text-gray-400'}`}>I</button>
                              </div>
                            </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-2 md:gap-3">
                           <div>
-                            <label className="text-[10px] text-gray-400 block mb-1">Text Color</label>
-                            <input type="color" value={subColor} onChange={e=>setSubColor(e.target.value)} className="w-full h-8 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                            <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Text Color</label>
+                            <input type="color" value={subColor} onChange={e=>setSubColor(e.target.value)} className="w-full h-6 md:h-8 rounded cursor-pointer bg-transparent border border-gray-600"/>
                           </div>
                           <div>
-                            <label className="text-[10px] text-gray-400 block mb-1">Border (Outline)</label>
-                            <select value={subOutline} onChange={e=>setSubOutline(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                            <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Border (Outline)</label>
+                            <select value={subOutline} onChange={e=>setSubOutline(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[9px] md:text-[11px] text-white outline-none">
                                {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                             </select>
                           </div>
@@ -607,35 +612,33 @@ const PersonalizedSender = () => {
 
                   {/* --- BOX TAB --- */}
                   {activeTab === 'box' && (
-                     <div className="space-y-4 animate-fade-in">
-                        <div className="grid grid-cols-2 gap-3">
+                     <div className="space-y-3 md:space-y-4 animate-fade-in">
+                        <div className="grid grid-cols-2 gap-2 md:gap-3">
                           <div>
-                            <label className="text-[10px] text-gray-400 block mb-1">Box Background</label>
-                            <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                            <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Background</label>
+                            <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[9px] md:text-[11px] text-white outline-none">
                                <option value="rgba(0, 0, 0, 0.5)">Dark Glass</option>
                                <option value="rgba(255, 255, 255, 0.5)">Light Glass</option>
                                <option value="transparent">Transparent</option>
                                <option value="#000000">Solid Black</option>
-                               <option value="#ffffff">Solid White</option>
                             </select>
                           </div>
                           <div>
-                            <label className="text-[10px] text-gray-400 block mb-1">Box Border</label>
-                            <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[11px] text-white outline-none">
+                            <label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Border</label>
+                            <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#0f172a] border border-gray-600 rounded p-1.5 text-[9px] md:text-[11px] text-white outline-none">
                                <option value="none">No Border</option>
                                <option value="2px solid white">Solid White</option>
-                               <option value="2px solid black">Solid Black</option>
                                <option value="2px dashed #d946ef">Dashed Pink</option>
                                <option value="2px solid #fbbf24">Solid Gold</option>
                             </select>
                           </div>
                         </div>
                         <div>
-                          <label className="text-[10px] text-gray-400 flex justify-between">Corner Sharpness (Radius) <span>{boxRadius}px</span></label>
+                          <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Radius <span>{boxRadius}px</span></label>
                           <input type="range" min="0" max="50" value={boxRadius} onChange={e=>setBoxRadius(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
                         </div>
                         <div>
-                          <label className="text-[10px] text-gray-400 flex justify-between">Inside Spacing (Padding) <span>{boxPadding}px</span></label>
+                          <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Padding <span>{boxPadding}px</span></label>
                           <input type="range" min="0" max="40" value={boxPadding} onChange={e=>setBoxPadding(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
                         </div>
                      </div>
@@ -646,13 +649,13 @@ const PersonalizedSender = () => {
 
            {/* 🟢 NEW STEP: IMAGE CAPTION BOX 🟢 */}
            <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 mt-auto">
-             <h3 className="text-white font-bold text-[11px] mb-2 flex justify-between">
+             <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2 flex justify-between">
                 4. Image Caption (Message)
              </h3>
              <textarea 
                value={message}
                onChange={(e) => setMessage(e.target.value)}
-               className="w-full h-[60px] bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-xs text-white outline-none focus:border-fuchsia-500 resize-none custom-scrollbar"
+               className="w-full h-[50px] md:h-[60px] bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-[10px] md:text-xs text-white outline-none focus:border-fuchsia-500 resize-none custom-scrollbar"
                placeholder="Type your caption here... Use {{Name}} to personalize."
              ></textarea>
            </div>
@@ -660,82 +663,80 @@ const PersonalizedSender = () => {
         </div>
 
         {/* CENTER: THE PRO CANVAS */}
-        <div className="flex-1 bg-[#0f172a] rounded-xl border border-gray-700 shadow-inner flex flex-col relative overflow-hidden">
-           <div className="absolute top-3 left-3 z-10 bg-black/80 px-4 py-1.5 rounded-full text-xs text-white border border-gray-700 flex items-center gap-2">
+        <div className="flex-1 bg-[#0f172a] rounded-xl border border-gray-700 shadow-inner flex flex-col relative overflow-hidden min-h-[350px] lg:min-h-0">
+           <div className="absolute top-3 left-3 z-10 bg-black/80 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs text-white border border-gray-700 flex items-center gap-2">
               <span className="w-2 h-2 bg-fuchsia-500 rounded-full animate-pulse"></span> Visual Editor
            </div>
 
-           <div className="flex-1 flex items-center justify-center p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5" onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
+           <div className="flex-1 flex items-center justify-center p-2 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5 overflow-hidden" style={{touchAction: 'none'}} onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
              {mediaPreview ? (
                <div ref={imageContainerRef} className="relative max-w-full max-h-full shadow-2xl border-4 border-gray-800 rounded-lg select-none">
-                 <img src={mediaPreview} alt="Base" className="max-w-full max-h-[70vh] object-contain pointer-events-none" />
+                 <img src={mediaPreview} alt="Base" className="max-w-full max-h-[50vh] lg:max-h-[70vh] object-contain pointer-events-none" />
 
                  {/* ADVANCED STICKER ELEMENT */}
-                 {showSticker && (
+                 <div 
+                   onMouseDown={handleDragStart} onTouchStart={handleDragStart}
+                   style={{ 
+                     top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, 
+                     transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab',
+                     background: boxBg, border: boxBorder, borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
+                     backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
+                   }}
+                   className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg p-1 md:p-2"
+                 >
+                   {/* DYNAMIC LINE 1: NAME */}
+                   <div 
+                     style={{ 
+                        color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
+                        WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
+                        textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
+                        lineHeight: '1.2'
+                     }}
+                     className="text-center w-full break-words"
+                   >
+                      {nameText}
+                   </div>
+                   
+                   {/* DYNAMIC LINE 2: SUB-TEXT */}
+                   {subText && (
                      <div 
-                       onMouseDown={handleDragStart} onTouchStart={handleDragStart}
                        style={{ 
-                         top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, 
-                         transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab',
-                         background: boxBg, border: boxBorder, borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
-                         backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
+                          color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
+                          WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
+                          marginTop: '4px', lineHeight: '1.2'
                        }}
-                       className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
+                       className="text-center w-full break-words opacity-90"
                      >
-                       {/* DYNAMIC LINE 1: NAME */}
-                       <div 
-                         style={{ 
-                            color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
-                            WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
-                            textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
-                            lineHeight: '1.2'
-                         }}
-                         className="text-center w-full break-words"
-                       >
-                          {nameText}
-                       </div>
-                       
-                       {/* DYNAMIC LINE 2: SUB-TEXT */}
-                       {subText && (
-                         <div 
-                           style={{ 
-                              color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
-                              WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
-                              marginTop: '4px', lineHeight: '1.2'
-                           }}
-                           className="text-center w-full break-words opacity-90"
-                         >
-                            {subText}
-                         </div>
-                       )}
-                       
-                       {/* RESIZE DOT */}
-                       <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-6 h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-0 group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30">
-                         <span className="text-[10px] text-fuchsia-600">⤡</span>
-                       </div>
+                        {subText}
                      </div>
-                 )}
+                   )}
+                   
+                   {/* RESIZE DOT */}
+                   <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-8 h-8 md:w-6 md:h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30">
+                     <span className="text-[12px] md:text-[10px] text-fuchsia-600">⤡</span>
+                   </div>
+                 </div>
                </div>
              ) : (
                <div className="text-gray-600 text-center flex flex-col items-center">
-                 <span className="text-6xl mb-4 opacity-50">🖼️</span>
-                 <p className="font-bold">Canvas is Empty</p>
-                 <p className="text-xs mt-2">Upload a Base Image from the left panel.</p>
+                 <span className="text-4xl md:text-6xl mb-2 md:mb-4 opacity-50">🖼️</span>
+                 <p className="font-bold text-xs md:text-base">Canvas is Empty</p>
+                 <p className="text-[9px] md:text-xs mt-1 md:mt-2">Upload a Base Image from the left panel.</p>
                </div>
              )}
            </div>
         </div>
 
         {/* RIGHT: LIVE LOGS */}
-        <div className="w-[280px] bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex flex-col overflow-hidden">
-          <div className="p-3 border-b border-gray-700 bg-[#0f172a] font-bold text-white text-sm">
+        <div className="w-full lg:w-[280px] bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex flex-col overflow-hidden max-h-[300px] lg:max-h-full flex-shrink-0">
+          <div className="p-3 border-b border-gray-700 bg-[#0f172a] font-bold text-white text-xs md:text-sm">
             📡 Delivery Logs
           </div>
 
           {campaignState !== 'idle' && (
-             <div className="p-3 bg-[#0f172a] border-b border-gray-700">
-               <div className="w-full bg-gray-700 rounded-full h-1.5 mb-2"><div className="bg-fuchsia-500 h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }}></div></div>
-               <p className="text-[10px] text-gray-400 text-center flex justify-between">
+             <div className="p-2 md:p-3 bg-[#0f172a] border-b border-gray-700">
+               <div className="w-full bg-gray-700 rounded-full h-1 md:h-1.5 mb-1.5 md:mb-2"><div className="bg-fuchsia-500 h-1 md:h-1.5 rounded-full transition-all" style={{ width: `${progress}%` }}></div></div>
+               <p className="text-[9px] md:text-[10px] text-gray-400 text-center flex justify-between">
                  <span className="text-green-400">Sent: {stats.sent}</span>
                  <span className="text-red-400">Failed: {stats.failed}</span>
                </p>
@@ -745,13 +746,13 @@ const PersonalizedSender = () => {
           <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar">
             {logs.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-50">
-                  <span className="text-3xl mb-2">⏳</span>
-                  <span className="text-xs">Logs appear here</span>
+                  <span className="text-2xl md:text-3xl mb-1 md:mb-2">⏳</span>
+                  <span className="text-[10px] md:text-xs">Logs appear here</span>
                </div>
             ) : logs.map(log => (
-               <div key={log.id} className="bg-[#0f172a] p-2 rounded-lg border border-gray-700/50 text-xs animate-fade-in">
+               <div key={log.id} className="bg-[#0f172a] p-2 rounded-lg border border-gray-700/50 text-[10px] md:text-xs animate-fade-in">
                   <div className="flex justify-between font-bold mb-1">
-                     <span className="text-gray-300 truncate w-[140px]" title={log.to}>{log.to}</span>
+                     <span className="text-gray-300 truncate w-[120px] md:w-[140px]" title={log.to}>{log.to}</span>
                      <span className={log.status.includes('Sent') ? 'text-green-400' : 'text-red-400'}>{log.status}</span>
                   </div>
                </div>
