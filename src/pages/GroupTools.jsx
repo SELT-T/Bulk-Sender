@@ -9,13 +9,12 @@ const GroupTools = () => {
   // ==========================================
   // STATE: GROUP EXTRACTOR
   // ==========================================
-  // 🟢 NAYA MODE ADD KIYA: 'web'
   const [extractMethod, setExtractMethod] = useState('web'); 
   const [groupLink, setGroupLink] = useState('');
   const [rawText, setRawText] = useState('');
   const [extractedData, setExtractedData] = useState([]);
   const [isFetching, setIsFetching] = useState(false);
-  const [selectedGroupToExtract, setSelectedGroupToExtract] = useState(''); // Extract ke liye selected group
+  const [selectedGroupToExtract, setSelectedGroupToExtract] = useState(''); 
 
   // ==========================================
   // STATE: GROUP SENDER & FETCHER
@@ -39,9 +38,11 @@ const GroupTools = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
-  // 0. CONNECTION CHECK
+  // 0. SMART CONNECTION CHECK (WON'T PANIC ON SLEEP)
   useEffect(() => {
     let interval;
+    let failCount = 0; // Taki ek chote lag par disconnect na mare
+
     const checkRealConnection = async () => {
       if (!user) return setWaStatus('disconnected');
       
@@ -53,8 +54,13 @@ const GroupTools = () => {
         if (mode === 'web') {
            const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
            const data = await res.json();
-           if (data.status === 'connected') setWaStatus('connected');
-           else setWaStatus('disconnected');
+           
+           if (data.status === 'connected') {
+               setWaStatus('connected');
+               failCount = 0;
+           } else {
+               setWaStatus(data.status); // Will be 'disconnected', 'scanning', or 'generating'
+           }
         } else {
            const res = await fetch(`${API_URL}/get-settings`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
@@ -64,12 +70,17 @@ const GroupTools = () => {
            else setWaStatus('disconnected');
         }
       } catch (err) {
-        setWaStatus('sleeping'); 
+        failCount++;
+        // Agar 3 baar se zyada fail ho tabhi disconnect / sleep dikhao, warna hold karo (Prevent UI flickers)
+        if (failCount > 2) {
+           setWaStatus('sleeping'); 
+        }
       }
     };
     
     checkRealConnection();
 
+    // Har 15 second me background check karega
     interval = setInterval(() => {
         checkRealConnection();
         const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
@@ -99,7 +110,7 @@ const GroupTools = () => {
             alert("❌ No groups found in your WhatsApp account.");
         }
     } catch (error) {
-        alert("⚠️ Backend Error! Make sure you updated server.js with the new group fetch routes.");
+        alert("⚠️ Backend Error! Make sure your render server is online.");
     }
     setIsFetchingGroups(false);
   };
@@ -109,7 +120,6 @@ const GroupTools = () => {
   // LOGIC: EXTRACTOR
   // ==========================================
 
-  // 🟢 NAYA FUNCTION: EXTRACT FROM LIVE GROUP
   const extractMembersFromWebGroup = async () => {
       if (!selectedGroupToExtract) return alert("❌ Please select a group from the list first.");
       if (waStatus !== 'connected') return alert("❌ WhatsApp API is disconnected!");
@@ -131,7 +141,7 @@ const GroupTools = () => {
               alert("❌ Could not fetch members. You might not be an active participant.");
           }
       } catch (err) {
-          alert(`❌ Extraction Error: Make sure your server.js is updated with the new routes.`);
+          alert(`❌ Extraction Error: Make sure your server is online.`);
       }
       setIsFetching(false);
   };
@@ -510,8 +520,17 @@ const GroupTools = () => {
              </div>
            </div>
 
+           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md">
+              <h3 className="text-white font-bold text-xs md:text-sm mb-2">2. Attach Media (Optional)</h3>
+              <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
+                 <input type="file" accept="*/*" onChange={(e) => setMedia(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                 <p className="text-xl mb-1">📎</p>
+                 <p className="text-[9px] md:text-[10px] text-gray-400 truncate px-2">{media ? media.name : "Any File / Image"}</p>
+               </div>
+           </div>
+
            <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-1 flex flex-col min-h-[220px]">
-             <h3 className="text-white font-bold text-xs md:text-sm mb-2">2. Compose Message</h3>
+             <h3 className="text-white font-bold text-xs md:text-sm mb-2">3. Compose Message</h3>
              <textarea 
                value={message}
                onChange={(e) => setMessage(e.target.value)}
