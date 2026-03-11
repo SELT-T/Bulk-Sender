@@ -23,15 +23,15 @@ const AITools = () => {
   const [imageStyle, setImageStyle] = useState('realistic');
 
   const fileInputRef = useRef(null);
-  const API_URL = "https://reachify-api.selt-3232.workers.dev";
+  const API_URL = "https://reachify-api.selt-3232.workers.dev"; // Tumhara Real Backend
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
   // --- TOOL DEFINITIONS (The Brain's Capabilities) ---
   const toolsConfig = {
     text: [
-      { id: 'custom_prompt', icon: '🧠', name: 'Universal ChatBot', desc: 'Ask anything, get answers like ChatGPT.' },
+      { id: 'custom_prompt', icon: '🧠', name: 'Universal ChatBot', desc: 'Ask anything, get real answers instantly (Hindi/English).' },
       { id: 'social_caption', icon: '📱', name: 'Viral Social Captions', desc: 'Instagram, LinkedIn, Twitter posts with hashtags.' },
-      { id: 'blog_writer', icon: '📝', name: 'Article / Blog Writer', desc: 'SEO optimized long-form content.' },
+      { id: 'blog_writer', icon: '📝', name: 'Article / Blog Writer', desc: 'SEO optimized long-form content generation.' },
       { id: 'spintax_gen', icon: '🔀', name: 'Anti-Ban Spintax', desc: 'Generate {Hi|Hello} variations for bulk sending.' },
       { id: 'rewriter', icon: '✍️', name: 'Pro Rewriter & Fixer', desc: 'Improve grammar, tone, and clarity.' },
     ],
@@ -54,54 +54,66 @@ const AITools = () => {
     if (file) {
       setUploadedFile(file);
       setFilePreview(URL.createObjectURL(file));
-      setImageOutput(null); // Clear previous output
+      setImageOutput(null);
     }
   };
 
-  // --- THE "ENGINE" (Simulation & API Trigger) ---
+  // --- 🔥 THE REAL AI ENGINE CONNECTION 🔥 ---
   const activateEngine = async () => {
-    if (studioMode === 'text' && !promptInput.trim()) return alert("❌ Please enter a prompt first!");
+    if (studioMode === 'text' && !promptInput.trim()) return alert("❌ Please enter a prompt first! (Ex: Write a Facebook post about my new shop)");
     if (studioMode === 'image' && activeToolId === 'text_to_image' && !promptInput.trim()) return alert("❌ Describe the image you want!");
     if (studioMode === 'utility' && !uploadedFile) return alert("❌ Please upload an image first!");
 
     setIsProcessing(true);
-    setProcessLog("Initializing Neural Net...");
-    setTextOutput(''); setImageOutput(null);
+    setTextOutput(''); 
+    setImageOutput(null);
 
-    try {
-      await simulateStep("Translating request to machine code...", 1000);
-      
-      if (studioMode === 'text') {
-         await simulateStep(`Generating text with ${textTone} tone in ${language}...`, 2000);
-         let simRes = `[SIMULATION MODE - Connect Backend for Real AI]\n\nHere is a ${textTone} output for: "${promptInput.substring(0, 20)}..."\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. This is placeholder text demonstrating where the actual AI response will appear once connected to OpenAI or similar APIs. It will respect your language selection (${language}).\n\n#ReachifyAI #Innovation`;
-         if(activeToolId === 'spintax_gen') simRes = "{Hello|Hi|Hey} there! Check out our {new|latest|exclusive} offer specially for {you|our valued members}.";
-         setTextOutput(simRes);
+    if (studioMode === 'text') {
+        setProcessLog("Connecting to OpenAI Neural Net...");
+        try {
+            // 🟢 REAL API CALL TO YOUR CLOUDFLARE WORKER
+            const res = await fetch(`${API_URL}/generate-ai`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: user.email,
+                    tool: activeToolId,
+                    prompt: promptInput,
+                    tone: textTone,
+                    language: language
+                })
+            });
 
-      } else if (studioMode === 'image') {
-         await simulateStep(`Synthesizing pixels based on description...`, 2500);
-         await simulateStep(`Applying ${imageStyle} style and rendering...`, 1500);
-         setImageOutput(`https://picsum.photos/seed/${Math.random()}/512/512`);
+            const data = await res.json();
 
-      } else if (studioMode === 'utility') {
-         await simulateStep(`Analyzing image structure...`, 1500);
-         await simulateStep(`Performing ${currentToolConfig.name} operation...`, 2000);
-         setImageOutput(filePreview); 
-      }
-      
-      await simulateStep("Finalizing output...", 500);
-      setProcessLog("Completed ✅");
-
-    } catch (error) {
-       setProcessLog("Error in processing engine.");
-       alert("Engine Failure. Check console.");
+            if (res.ok && data.result) {
+                setProcessLog("Drafting response...");
+                setTextOutput(data.result);
+                setProcessLog("Completed ✅");
+            } else {
+                setProcessLog("AI Engine Error");
+                alert(`❌ API Error: ${data.error || 'Check if your AI API Key is saved in Settings!'}`);
+            }
+        } catch (error) {
+            setProcessLog("Network Failure");
+            alert("❌ Failed to connect to server. Please try again.");
+        }
+    } 
+    else if (studioMode === 'image' || studioMode === 'utility') {
+        // Image & Utility modes are currently simulated because Backend /generate-ai only handles text right now
+        // In the future, you can add DALL-E route to your Cloudflare worker to make this real too!
+        setProcessLog("Image Processing API Not Linked Yet...");
+        setTimeout(() => {
+            alert("⚠️ Image APIs (DALL-E / Stability) need to be configured in your backend first. Currently returning placeholder.");
+            setImageOutput(`https://picsum.photos/seed/${Math.random()}/512/512`);
+            setProcessLog("Completed ✅");
+            setIsProcessing(false);
+        }, 1500);
+        return;
     }
+
     setIsProcessing(false);
   };
-
-  const simulateStep = (log, ms) => new Promise(resolve => {
-    setProcessLog(log);
-    setTimeout(resolve, ms);
-  });
 
   // --- UI HELPERS ---
   const handleSwitchMode = (mode) => {
@@ -111,6 +123,7 @@ const AITools = () => {
   };
 
   const copyToClipboard = () => {
+    if (!textOutput) return;
     navigator.clipboard.writeText(textOutput);
     alert("✅ Copied to clipboard!");
   };
@@ -140,12 +153,11 @@ const AITools = () => {
 
       <div className="flex-1 flex flex-col lg:flex-row gap-4 overflow-y-auto lg:overflow-hidden custom-scrollbar">
         
-        {/* 2. LEFT PANEL: TOOL SELECTOR (Full width on mobile, fixed on PC) */}
+        {/* 2. LEFT PANEL: TOOL SELECTOR */}
         <div className="w-full lg:w-[260px] bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden flex-shrink-0 lg:max-h-full">
            <div className="p-3 bg-[#0f172a] border-b border-gray-700 font-bold text-white text-xs md:text-sm tracking-wider">
              AVAILABLE MODULES
            </div>
-           {/* Grid layout on mobile, list on PC */}
            <div className="flex-1 overflow-y-auto p-3 grid grid-cols-2 lg:grid-cols-1 gap-2 custom-scrollbar">
               {toolsConfig[studioMode].map(tool => (
                  <button 
@@ -183,7 +195,7 @@ const AITools = () => {
                        value={promptInput}
                        onChange={e => setPromptInput(e.target.value)}
                        className="flex-1 w-full min-h-[120px] bg-[#0f172a]/80 border border-gray-600/50 rounded-xl p-3 md:p-4 text-white font-mono text-xs md:text-sm outline-none focus:border-fuchsia-500 resize-none focus:shadow-[0_0_15px_rgba(217,70,239,0.2)] transition-all custom-scrollbar"
-                       placeholder={studioMode === 'image' ? "A futuristic cyberpunk city at sunset, neon lights..." : "Write an engaging caption for a new shoe launch..."}
+                       placeholder={studioMode === 'image' ? "A futuristic cyberpunk city at sunset, neon lights..." : "Ex: Apni dukan ke liye ek dhamakedar Diwali offer message likho... \nOr: Write a professional email for a client meeting..."}
                     ></textarea>
                  </div>
               )}
@@ -228,8 +240,26 @@ const AITools = () => {
               
               {studioMode === 'text' && (
                  <div className="grid grid-cols-2 lg:grid-cols-1 gap-2 md:gap-3 animate-fade-in">
-                    <div><label className="text-[9px] md:text-[10px] text-gray-500 block mb-1">Tone / Style</label><select value={textTone} onChange={e=>setTextTone(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] md:text-xs text-white outline-none"><option value="professional">🕴️ Professional</option><option value="engaging">🔥 Engaging</option><option value="persuasive">💰 Sales</option><option value="friendly">🤝 Friendly</option></select></div>
-                    <div><label className="text-[9px] md:text-[10px] text-gray-500 block mb-1">Language</label><select value={language} onChange={e=>setLanguage(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] md:text-xs text-white outline-none"><option value="english">English</option><option value="hindi">Hindi (हिंदी)</option><option value="hinglish">Hinglish</option></select></div>
+                    <div>
+                       <label className="text-[9px] md:text-[10px] text-gray-500 block mb-1">Tone / Style</label>
+                       <select value={textTone} onChange={e=>setTextTone(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] md:text-xs text-white outline-none">
+                          <option value="professional">🕴️ Professional</option>
+                          <option value="engaging">🔥 Engaging</option>
+                          <option value="persuasive">💰 Sales & Marketing</option>
+                          <option value="friendly">🤝 Friendly</option>
+                          <option value="humorous">😂 Humorous</option>
+                       </select>
+                    </div>
+                    <div>
+                       <label className="text-[9px] md:text-[10px] text-gray-500 block mb-1">Output Language</label>
+                       <select value={language} onChange={e=>setLanguage(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] md:text-xs text-white outline-none">
+                          <option value="english">English (Default)</option>
+                          <option value="hindi">Hindi (शुद्ध हिंदी)</option>
+                          <option value="hinglish">Hinglish (Social Media style)</option>
+                          <option value="marathi">Marathi</option>
+                          <option value="gujarati">Gujarati</option>
+                       </select>
+                    </div>
                  </div>
               )}
 
@@ -241,7 +271,7 @@ const AITools = () => {
               )}
               
               {studioMode === 'utility' && (
-                 <div className="text-[10px] md:text-xs text-gray-500 italic p-2 text-center">No extra settings for this tool.</div>
+                 <div className="text-[10px] md:text-xs text-gray-500 italic p-2 text-center">API setup required for image processing.</div>
               )}
            </div>
 
@@ -249,11 +279,11 @@ const AITools = () => {
            <div className="flex-1 flex flex-col bg-[#0f172a]/50 relative overflow-hidden min-h-[250px]">
               <div className="p-2 border-b border-gray-700/30 flex justify-between items-center bg-[#0f172a]">
                  <span className="text-[10px] md:text-xs text-fuchsia-400 font-bold ml-1 md:ml-2">GENERATED RESULT</span>
-                 {textOutput && <button onClick={copyToClipboard} className="text-[9px] md:text-[10px] bg-fuchsia-600/20 text-fuchsia-300 px-2 py-1 rounded hover:bg-fuchsia-600 hover:text-white transition-all">📋 Copy</button>}
+                 {textOutput && <button onClick={copyToClipboard} className="text-[9px] md:text-[10px] bg-fuchsia-600/20 text-fuchsia-300 px-3 py-1.5 rounded-md hover:bg-fuchsia-600 hover:text-white font-bold transition-all border border-fuchsia-500/30">📋 Copy to use</button>}
                  {(imageOutput && studioMode!=='text') && <a href={imageOutput} download="ai_generated.jpg" className="text-[9px] md:text-[10px] bg-green-600/20 text-green-300 px-2 py-1 rounded hover:bg-green-600 hover:text-white transition-all">💾 Download</a>}
               </div>
               
-              <div className="flex-1 p-3 md:p-4 overflow-y-auto custom-scrollbar relative flex items-center justify-center">
+              <div className="flex-1 p-3 md:p-5 overflow-y-auto custom-scrollbar relative flex items-center justify-center">
                  {isProcessing ? (
                     <div className="flex flex-col items-center justify-center space-y-3 md:space-y-4 z-10">
                        <div className="relative w-16 h-16 md:w-20 md:h-20">
@@ -263,13 +293,16 @@ const AITools = () => {
                        <p className="text-fuchsia-300 text-xs md:text-sm font-bold animate-pulse tracking-wider text-center">{processLog}</p>
                     </div>
                  ) : textOutput ? (
-                    <div className="w-full h-full text-gray-200 text-xs md:text-sm whitespace-pre-wrap font-mono leading-relaxed animate-fade-in">{textOutput}</div>
+                    // This container will format the real AI response nicely
+                    <div className="w-full h-full text-gray-200 text-sm md:text-base whitespace-pre-wrap leading-relaxed animate-fade-in">
+                        {textOutput}
+                    </div>
                  ) : imageOutput ? (
                     <img src={imageOutput} alt="Generated" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl border border-gray-700/50 animate-fade-in p-1" />
                  ) : (
                     <div className="flex flex-col items-center justify-center opacity-30 text-gray-500">
-                       <span className="text-4xl md:text-6xl mb-2 md:mb-4 grayscale">🧬</span>
-                       <p className="font-bold tracking-widest text-[10px] md:text-xs">AWAITING INPUT</p>
+                       <span className="text-4xl md:text-6xl mb-2 md:mb-4 grayscale">🤖</span>
+                       <p className="font-bold tracking-widest text-[10px] md:text-xs">AWAITING PROMPT</p>
                     </div>
                  )}
                  {!isProcessing && !textOutput && !imageOutput && (
