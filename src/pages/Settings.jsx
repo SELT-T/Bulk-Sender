@@ -60,8 +60,8 @@ const Settings = () => {
     // Data Extractors (GMap)
     gmaps_api_key: '',
     
-    // AI Configuration
-    ai_provider: 'openai',
+    // 🔥 AI Configuration (GEMINI SETTINGS UPDATED) 🔥
+    ai_provider: 'gemini',
     ai_api_key: '',
     ai_max_tokens: '2000'
   });
@@ -222,13 +222,11 @@ const Settings = () => {
         </div>
       </div>
 
-      {/* Main Layout: Flex Col on Mobile, Flex Row on PC */}
       <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-hidden">
         
-        {/* LEFT SIDEBAR (MOBILE: HORIZONTAL SCROLL, PC: VERTICAL LIST) */}
+        {/* LEFT SIDEBAR */}
         <div className="w-full lg:w-[280px] flex lg:flex-col gap-2 lg:gap-6 overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto custom-scrollbar flex-shrink-0 pb-2 lg:pb-10 lg:pr-2 border-b lg:border-b-0 border-gray-700/50">
           
-          {/* Mobile View Flat List */}
           <div className="flex lg:hidden gap-2">
              {menuItems.map(item => (
                 <button
@@ -245,7 +243,6 @@ const Settings = () => {
              ))}
           </div>
 
-          {/* PC View Categorized List */}
           <div className="hidden lg:block w-full">
             {menuCategories.map(category => (
               <div key={category} className="mb-6">
@@ -281,15 +278,13 @@ const Settings = () => {
               onClick={handleSave} disabled={isSaving}
               className="bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-[1.02] text-white px-4 md:px-8 py-2 md:py-2.5 rounded-xl text-xs md:text-sm font-bold shadow-lg transition-all disabled:opacity-50 flex items-center gap-1 md:gap-2 flex-shrink-0"
             >
-              {isSaving ? <><span className="animate-spin">⏳</span> <span className="hidden sm:inline">Saving...</span></> : '💾 Save'}
+              {isSaving ? <><span className="animate-spin">⏳</span> <span className="hidden sm:inline">Saving...</span></> : '💾 Save Settings'}
             </button>
           </div>
 
           <div className="flex-1 p-4 md:p-6 overflow-y-auto custom-scrollbar bg-gradient-to-b from-[#1e293b] to-[#0f172a]">
             
-            {/* ========================================= */}
-            {/* 1. PROFILE SETTINGS */}
-            {/* ========================================= */}
+            {/* 1. PROFILE */}
             {activeTab === 'profile' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-3xl">
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 md:gap-6 mb-4 md:mb-8 bg-[#0f172a] p-4 md:p-6 rounded-2xl border border-gray-700">
@@ -324,9 +319,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 2. SUBSCRIPTION & BILLING */}
-            {/* ========================================= */}
+            {/* 2. BILLING */}
             {activeTab === 'billing' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-3xl">
                 <div className="bg-gradient-to-r from-indigo-900 to-fuchsia-900 border border-fuchsia-500/50 p-5 md:p-6 rounded-2xl shadow-xl relative overflow-hidden">
@@ -360,9 +353,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 3. GENERAL SETTINGS */}
-            {/* ========================================= */}
+            {/* 3. GENERAL */}
             {activeTab === 'general' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-2xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
@@ -395,9 +386,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 4. DISPLAY SETTINGS */}
-            {/* ========================================= */}
+            {/* 4. DISPLAY */}
             {activeTab === 'display' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-2xl">
                  <div>
@@ -418,9 +407,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
             {/* 5. NOTIFICATIONS */}
-            {/* ========================================= */}
             {activeTab === 'notifications' && (
               <div className="space-y-3 md:space-y-4 animate-fade-in max-w-2xl">
                  <ToggleSwitch name="notify_email_campaigns" checked={settings.notify_email_campaigns} label="Campaign Emails" desc="Receive a summary email when a bulk blast finishes." />
@@ -429,9 +416,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 6. WHATSAPP CONNECTION (CRITICAL FOR MOBILE) */}
-            {/* ========================================= */}
+            {/* 6. WHATSAPP */}
             {activeTab === 'whatsapp' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-3xl">
                 
@@ -500,7 +485,7 @@ const Settings = () => {
                            </div>
                         </div>
 
-                        {/* QR AREA (Responsive Box) */}
+                        {/* QR AREA */}
                         <div className="w-48 h-48 md:w-64 md:h-64 flex-shrink-0 bg-[#111b21] rounded-xl border-4 border-gray-600 flex items-center justify-center p-2 relative overflow-hidden shadow-[inset_0_0_20px_rgba(0,0,0,0.5)]">
                            {(webStatus === 'disconnected' || webStatus === 'generating') && !qrCodeData && (
                               <div className="text-center">
@@ -562,9 +547,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 7. SOCIAL MEDIA API SETTINGS */}
-            {/* ========================================= */}
+            {/* 7. SOCIAL */}
             {activeTab === 'social' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-3xl">
                 <p className="text-[10px] md:text-sm text-gray-400 bg-blue-500/10 border border-blue-500/20 p-3 md:p-4 rounded-xl">Add App Credentials to enable Omni-channel publishing.</p>
@@ -582,14 +565,11 @@ const Settings = () => {
                       </div>
                     </div>
                   </div>
-                  {/* Additional Social Blocks... */}
                 </div>
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 8. DATA EXTRACTORS */}
-            {/* ========================================= */}
+            {/* 8. EXTRACTORS */}
             {activeTab === 'extractors' && (
               <div className="space-y-6 animate-fade-in max-w-2xl">
                 <div>
@@ -605,33 +585,42 @@ const Settings = () => {
               </div>
             )}
 
-            {/* ========================================= */}
-            {/* 9. AI MODELS */}
-            {/* ========================================= */}
+            {/* 🔥 9. AI MODELS (UPDATED FOR GEMINI) 🔥 */}
             {activeTab === 'ai' && (
               <div className="space-y-4 md:space-y-6 animate-fade-in max-w-2xl">
+                
+                <div className="bg-blue-500/10 border border-blue-500/30 p-4 rounded-xl flex items-start gap-3">
+                   <span className="text-2xl">💡</span>
+                   <div>
+                      <h4 className="text-blue-400 font-bold text-sm">Google Gemini AI Engine</h4>
+                      <p className="text-gray-400 text-xs mt-1">We have completely integrated Google's ultra-fast Gemini 1.5 Flash API for limitless free generations. Paste your copied key below.</p>
+                   </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <div>
-                    <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">AI Engine</label>
-                    <select name="ai_provider" value={settings.ai_provider} onChange={handleChange} className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-xs md:text-sm text-white outline-none focus:border-purple-500">
-                      <option value="openai">OpenAI (GPT-4o)</option>
-                      <option value="gemini">Google Gemini Pro</option>
-                      <option value="claude">Anthropic Claude</option>
+                    <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">AI Provider Engine</label>
+                    <select name="ai_provider" value={settings.ai_provider} onChange={handleChange} className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-xs md:text-sm text-white outline-none focus:border-blue-500">
+                      <option value="gemini">Google Gemini 1.5 Flash (Free)</option>
+                      <option value="openai" disabled>OpenAI GPT-4o (Premium)</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">Max Tokens</label>
-                    <input type="number" name="ai_max_tokens" value={settings.ai_max_tokens} onChange={handleChange} className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-white font-mono text-base md:text-sm outline-none focus:border-purple-500" />
+                    <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">Max Output Tokens</label>
+                    <input type="number" name="ai_max_tokens" value={settings.ai_max_tokens} onChange={handleChange} className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-white font-mono text-base md:text-sm outline-none focus:border-blue-500" />
                   </div>
                 </div>
                 <div>
-                  <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">API Key</label>
+                  <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">Paste Your Gemini API Key Here</label>
                   <div className="relative">
-                    <input type={showPassword['ai_key'] ? 'text' : 'password'} name="ai_api_key" value={settings.ai_api_key} onChange={handleChange} placeholder="sk-..." className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-white font-mono text-base md:text-sm outline-none focus:border-purple-500 pr-12" />
+                    <input type={showPassword['ai_key'] ? 'text' : 'password'} name="ai_api_key" value={settings.ai_api_key} onChange={handleChange} placeholder="AIzaSy..." className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-white font-mono text-base md:text-sm outline-none focus:border-blue-500 pr-12" />
                     <button onClick={() => toggleVisibility('ai_key')} className="absolute right-3 md:right-4 top-3 md:top-3.5 text-gray-400 hover:text-white">
                       {showPassword['ai_key'] ? '👁️' : '🙈'}
                     </button>
                   </div>
+                  {settings.ai_api_key && settings.ai_api_key.startsWith('AIza') && (
+                     <p className="text-green-400 text-xs mt-2 font-bold flex items-center gap-1"><span>✅</span> Valid Gemini Key Format Detected. Don't forget to click Save.</p>
+                  )}
                 </div>
               </div>
             )}
