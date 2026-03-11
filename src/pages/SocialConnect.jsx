@@ -24,8 +24,8 @@ const SocialConnect = () => {
 
   // === BIRTHDAY AUTO-PILOT STATES (No Dummy Data) ===
   const [autoWishEnabled, setAutoWishEnabled] = useState(false);
-  const [wishTemplate, setWishTemplate] = useState("Happy Birthday {{Name}}! 🎉 Wishing you a fantastic year ahead from the Reachify Pro team! 🎂");
-  const [birthdays, setBirthdays] = useState([]); // Blank, awaiting real API
+  const [wishTemplate, setWishTemplate] = useState("Happy Birthday {{Name}}! 🎉 Wishing you a fantastic year ahead from our team! 🎂");
+  const [birthdays, setBirthdays] = useState([]); // Strictly empty, awaits real API fetch
   const [isSyncing, setIsSyncing] = useState(false);
 
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
@@ -55,11 +55,13 @@ const SocialConnect = () => {
 
   // --- HANDLERS ---
 
+  // REAL OAUTH CONNECTION (Direct Login flow via Backend)
   const handleConnectToggle = async (platformId) => {
     const platform = platforms.find(p => p.id === platformId);
     
     if (platform.connected) {
-      if(window.confirm(`Are you sure you want to disconnect ${platform.name}?`)) {
+      if(window.confirm(`Are you sure you want to completely disconnect ${platform.name}?`)) {
+         // Logic to remove from database (needs backend route)
          setPlatforms(platforms.map(p => p.id === platformId ? { ...p, connected: false } : p));
       }
       return;
@@ -77,13 +79,16 @@ const SocialConnect = () => {
       if (!res.ok) throw new Error("API Keys missing in backend.");
       
       const data = await res.json();
+      
+      // Agar backend se asli OAuth Login URL mila toh wahan bhej do (Jaise Facebook Login Page)
       if (data.auth_url) {
         window.location.href = data.auth_url; 
       } else {
         throw new Error("Invalid response from server.");
       }
     } catch (err) {
-      alert(`❌ CONNECTION FAILED!\n\nBackend API keys (App ID / Secret) for ${platform.name} are missing or not configured.\nPlease set up the developer console first.`);
+      // Fake connection ko block karo. Error dikhao.
+      alert(`❌ OAUTH LOGIN FAILED!\n\nBackend API keys (App ID / Secret) for ${platform.name} are missing or not configured by the Admin.\nPlease set up the Developer Console first.`);
     }
     setIsConnecting(null);
   };
@@ -108,9 +113,10 @@ const SocialConnect = () => {
     if (selectedPlatforms.length === 0) return alert("❌ Select at least one platform to post!");
     if (!postContent && !postMedia) return alert("❌ Add text or media to publish!");
     
+    // Strict Guard: Prevent posting if platform is not strictly connected
     const unconnected = selectedPlatforms.filter(id => !platforms.find(p => p.id === id).connected);
     if (unconnected.length > 0) {
-       return alert(`⚠️ ERROR: Selected platforms are NOT connected via API. Go to the 'Connections' tab to authenticate first.`);
+       return alert(`⚠️ ERROR: Selected platforms are NOT connected. Go to the 'Connections' tab to authenticate and login first.`);
     }
 
     setIsPosting(true);
@@ -138,12 +144,13 @@ const SocialConnect = () => {
       }
       setPostContent(''); setPostMedia(null); setMediaPreview(null);
     } catch (err) {
-      alert(`❌ API ERROR: ${err.message}\nMake sure your access tokens are valid.`);
+      alert(`❌ API ERROR: ${err.message}\nMake sure your OAuth access tokens are valid.`);
     }
     
     setIsPosting(false);
   };
 
+  // REAL BIRTHDAY SYNC FROM SOCIAL GRAPH API
   const handleSyncBirthdays = async () => {
     const hasConnection = platforms.some(p => p.connected);
     if (!hasConnection) {
@@ -160,8 +167,11 @@ const SocialConnect = () => {
        if (!res.ok) throw new Error("Failed to fetch graph data.");
        
        const data = await res.json();
-       if(data.birthdays) setBirthdays(data.birthdays);
-       else alert("No upcoming birthdays found in your network.");
+       if(data.birthdays && data.birthdays.length > 0) {
+           setBirthdays(data.birthdays);
+       } else {
+           alert("No upcoming birthdays found in your real network.");
+       }
 
     } catch (err) {
        alert(`❌ SYNC FAILED: ${err.message}\nAPI connections might be expired or not configured properly.`);
@@ -170,7 +180,6 @@ const SocialConnect = () => {
   };
 
   return (
-    // 🔥 MOBILE WRAPPER FIX
     <div className="flex flex-col h-auto min-h-screen lg:min-h-[calc(100vh-80px)] lg:h-[calc(100vh-80px)] max-w-[1400px] mx-auto p-2 md:p-4 animate-fade-in pb-20 lg:pb-0">
       
       {/* 🌟 HEADER & PLATFORM STRIP */}
@@ -182,7 +191,6 @@ const SocialConnect = () => {
             <p className="text-gray-400 text-[10px] md:text-xs mt-1">Manage, Schedule, and Automate all your social media presence.</p>
          </div>
 
-         {/* Mini Connection Status Strip */}
          <div className="flex flex-wrap gap-2">
             {platforms.map(plat => (
                <div key={plat.id} onClick={() => setActiveTab('connections')} className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center text-sm md:text-lg cursor-pointer transition-all border-2 ${plat.connected ? `${plat.color} border-transparent shadow-[0_0_10px_rgba(255,255,255,0.2)]` : 'bg-[#0f172a] border-gray-600 grayscale opacity-50 hover:grayscale-0 hover:opacity-100'}`} title={plat.name}>
@@ -192,7 +200,7 @@ const SocialConnect = () => {
          </div>
       </div>
 
-      {/* 🌟 NAVIGATION TABS (Flex-wrap for mobile) */}
+      {/* 🌟 NAVIGATION TABS */}
       <div className="flex flex-wrap bg-[#1e293b] p-1.5 rounded-xl border border-gray-700 shadow-md mb-4 w-full md:w-fit gap-1 md:gap-0">
          <button onClick={() => setActiveTab('publisher')} className={`flex-1 md:flex-none px-3 md:px-6 py-2 rounded-lg text-[10px] md:text-sm font-bold transition-all flex items-center justify-center gap-1.5 md:gap-2 ${activeTab === 'publisher' ? 'bg-fuchsia-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}>
             <span>📝</span> <span className="hidden sm:inline">Publisher</span><span className="sm:hidden">Post</span>
@@ -222,7 +230,7 @@ const SocialConnect = () => {
                 </div>
                 <h3 className="text-white font-bold text-base md:text-lg">{plat.name}</h3>
                 <p className="text-[10px] md:text-xs text-gray-400 mt-1 md:mt-2 mb-4 md:mb-6 h-8 md:h-10">
-                  {plat.connected ? `Successfully linked via Official API. Syncing active.` : `API Disconnected. Requires keys from Backend.`}
+                  {plat.connected ? `Successfully authenticated and linked. Syncing active.` : `Disconnected. Requires Secure OAuth Login.`}
                 </p>
                 
                 <button 
@@ -236,7 +244,7 @@ const SocialConnect = () => {
                         : 'bg-white/10 hover:bg-white/20 text-white border border-gray-600'
                   }`}
                 >
-                  {isConnecting === plat.id ? <><span className="animate-spin">🔄</span> Calling...</> : plat.connected ? 'Disconnect' : 'Connect API'}
+                  {isConnecting === plat.id ? <><span className="animate-spin">🔄</span> Requesting Login...</> : plat.connected ? 'Disconnect' : 'Login / Connect'}
                 </button>
               </div>
             ))}
@@ -249,10 +257,9 @@ const SocialConnect = () => {
         {activeTab === 'publisher' && (
           <div className="flex flex-col lg:flex-row gap-4 md:gap-6 lg:h-full lg:overflow-hidden animate-fade-in">
             
-            {/* Left: Composer (Full width on mobile) */}
+            {/* Left: Composer */}
             <div className="w-full lg:w-7/12 xl:w-8/12 flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar">
               
-              {/* Select Platforms */}
               <div className="bg-[#1e293b] p-4 md:p-5 rounded-2xl border border-gray-700 shadow-md">
                  <h3 className="text-white font-bold text-xs md:text-sm mb-3">1. Select Destinations</h3>
                  <div className="grid grid-cols-4 gap-2 md:gap-3">
@@ -270,12 +277,11 @@ const SocialConnect = () => {
                  </div>
                  {selectedPlatforms.some(id => !platforms.find(p=>p.id === id).connected) && (
                     <p className="text-[9px] md:text-[10px] text-red-400 mt-2 text-center bg-red-500/10 p-1 rounded border border-red-500/20">
-                      ⚠️ You have selected offline platforms. Publishing will fail unless you connect them.
+                      ⚠️ You have selected offline platforms. Publishing will fail unless you connect them via OAuth.
                     </p>
                  )}
               </div>
 
-              {/* Content Box */}
               <div className="bg-[#1e293b] p-4 md:p-5 rounded-2xl border border-gray-700 shadow-md flex-1 flex flex-col min-h-[250px]">
                  <h3 className="text-white font-bold text-xs md:text-sm mb-3">2. Create Post</h3>
                  <textarea 
@@ -298,7 +304,6 @@ const SocialConnect = () => {
                  </div>
               </div>
 
-              {/* Scheduling & Publish */}
               <div className="bg-[#1e293b] p-4 md:p-5 rounded-2xl border border-gray-700 shadow-md">
                  <div className="flex flex-col md:flex-row gap-3 md:gap-4 items-start md:items-end">
                     <div className="flex-1 w-full flex gap-3">
@@ -320,10 +325,9 @@ const SocialConnect = () => {
                     </button>
                  </div>
               </div>
-
             </div>
 
-            {/* Right: Live Preview (Will stack below on mobile) */}
+            {/* Right: Live Preview */}
             <div className="w-full lg:w-5/12 xl:w-4/12 bg-[#0f172a] rounded-2xl border border-gray-700 shadow-inner flex flex-col relative overflow-hidden min-h-[300px] lg:min-h-0">
                <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-black/80 px-2 md:px-3 py-1 rounded-full text-[9px] md:text-[10px] text-white border border-gray-600 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> Preview
@@ -334,17 +338,17 @@ const SocialConnect = () => {
                      <div className="p-2 md:p-3 flex items-center gap-2 border-b">
                         <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gradient-to-tr from-fuchsia-500 to-purple-600"></div>
                         <div className="flex flex-col">
-                           <span className="text-black font-bold text-[10px] md:text-xs leading-tight">Reachify Pro</span>
+                           <span className="text-black font-bold text-[10px] md:text-xs leading-tight">{user.name || 'Your Brand'}</span>
                            <span className="text-gray-500 text-[8px] md:text-[9px]">Just now • 🌍</span>
                         </div>
                      </div>
                      <div className="p-2 md:p-3 text-black text-[10px] md:text-xs whitespace-pre-wrap break-words min-h-[40px]">
-                        {postContent || "Your post text will appear here..."}
+                        {postContent || "Your real post preview will appear here..."}
                      </div>
                      {mediaPreview ? (
                         <img src={mediaPreview} alt="Post" className="w-full h-auto max-h-40 md:max-h-48 object-cover border-y" />
                      ) : (
-                        <div className="w-full h-24 md:h-32 bg-gray-100 border-y flex items-center justify-center text-gray-400 text-[10px] md:text-xs">No media</div>
+                        <div className="w-full h-24 md:h-32 bg-gray-100 border-y flex items-center justify-center text-gray-400 text-[10px] md:text-xs">No media attached</div>
                      )}
                      <div className="p-2 md:p-3 flex justify-between text-gray-500 text-[9px] md:text-[10px]">
                         <span>❤️ Like</span>
@@ -376,7 +380,7 @@ const SocialConnect = () => {
                    <p className="text-[10px] md:text-xs text-gray-400 mb-4 md:mb-6">When enabled, the system listens to APIs and auto-sends the template on birthdays.</p>
                    
                    <h4 className="text-white font-bold text-[10px] md:text-xs mb-1 md:mb-2">Message Template</h4>
-                   <p className="text-[9px] md:text-[10px] text-gray-500 mb-2">Use <code className="bg-black px-1 rounded text-fuchsia-400">{"{{Name}}"}</code> to insert name.</p>
+                   <p className="text-[9px] md:text-[10px] text-gray-500 mb-2">Use <code className="bg-black px-1 rounded text-fuchsia-400">{"{{Name}}"}</code> to insert name dynamically.</p>
                    <textarea 
                      value={wishTemplate}
                      onChange={e=>setWishTemplate(e.target.value)}
@@ -389,7 +393,7 @@ const SocialConnect = () => {
                      className="w-full bg-[#0f172a] hover:bg-white/5 border border-gray-600 text-white py-2.5 md:py-3 rounded-xl font-bold transition-all text-xs md:text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                    >
                      {isSyncing ? <span className="animate-spin">🔄</span> : <span>🔄</span>}
-                     {isSyncing ? 'Fetching Data...' : 'Force Sync Now'}
+                     {isSyncing ? 'Fetching Graph Data...' : 'Force Sync Real Network'}
                    </button>
                 </div>
              </div>
@@ -398,8 +402,8 @@ const SocialConnect = () => {
              <div className="flex-1 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-md flex flex-col overflow-hidden min-h-[300px] lg:min-h-0">
                 <div className="p-3 md:p-5 border-b border-gray-700 bg-[#0f172a] flex justify-between items-center">
                   <div>
-                     <h3 className="text-white font-bold text-xs md:text-base">Upcoming Birthdays</h3>
-                     <p className="text-[8px] md:text-[10px] text-gray-400">Real-time sync</p>
+                     <h3 className="text-white font-bold text-xs md:text-base">Upcoming Network Birthdays</h3>
+                     <p className="text-[8px] md:text-[10px] text-gray-400">Real-time sync from connected platforms</p>
                   </div>
                   <span className="bg-fuchsia-600/20 text-fuchsia-400 px-2 md:px-3 py-1 rounded-full text-[9px] md:text-xs font-bold border border-fuchsia-500/30">
                      Found: {birthdays.length}
@@ -411,7 +415,7 @@ const SocialConnect = () => {
                       <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-60 min-h-[200px]">
                          <span className="text-4xl md:text-6xl mb-2 md:mb-4">🔌</span>
                          <p className="font-bold text-xs md:text-base">No Data Found</p>
-                         <p className="text-[9px] md:text-xs mt-1 md:mt-2 text-center px-4 md:px-10">Connect an API in the 'Connections' tab to fetch network birthdays.</p>
+                         <p className="text-[9px] md:text-xs mt-1 md:mt-2 text-center px-4 md:px-10">Connect an API in the 'Connections' tab to fetch network birthdays from Facebook/LinkedIn.</p>
                       </div>
                    ) : (
                       <table className="w-full text-left min-w-[400px]">
