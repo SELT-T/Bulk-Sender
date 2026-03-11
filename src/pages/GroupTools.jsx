@@ -59,7 +59,6 @@ const GroupTools = () => {
     setExtractedData([]);
 
     try {
-      // REAL Backend call (Will only work when you configure a real API provider in settings)
       const res = await fetch(`${API_URL}/extract-group`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -84,7 +83,6 @@ const GroupTools = () => {
   const handleParseText = () => {
     if (!rawText.trim()) return alert("❌ Please paste some WhatsApp group text first!");
     
-    // Finds international numbers and local 10-digit numbers
     const phoneRegex = /\+?\d{1,4}[-.\s]?\(?\d{1,3}?\)?[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}/g;
     const foundNumbers = rawText.match(phoneRegex);
 
@@ -194,108 +192,109 @@ const GroupTools = () => {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-80px)] gap-4 max-w-7xl mx-auto p-2 animate-fade-in-up">
+    // 🔥 MOBILE WRAPPER FIX
+    <div className="flex flex-col h-auto min-h-screen lg:min-h-[calc(100vh-80px)] lg:h-[calc(100vh-80px)] gap-4 max-w-7xl mx-auto p-2 md:p-4 animate-fade-in-up pb-20 lg:pb-0">
       
       {/* TOP NAVIGATION TOGGLE */}
-      <div className="flex justify-between items-center bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
-        <h2 className="text-xl font-bold text-white flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-md gap-3 sm:gap-0">
+        <h2 className="text-lg md:text-xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
            ⚙️ Group Automation
            {waStatus === 'connected' ? (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[10px] text-green-400">
+              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-green-500/10 border border-green-500/30 rounded text-[9px] md:text-[10px] text-green-400">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span> API Linked
               </span>
            ) : (
-              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[10px] text-red-400">
+              <span className="flex items-center gap-1.5 px-2 py-0.5 bg-red-500/10 border border-red-500/30 rounded text-[9px] md:text-[10px] text-red-400">
                 <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span> No API Detected
               </span>
            )}
         </h2>
-        <div className="flex bg-[#0f172a] p-1 rounded-lg border border-gray-600">
-          <button onClick={() => setActiveMode('extract')} className={`px-5 py-1.5 rounded-md text-xs font-bold transition-all ${activeMode === 'extract' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
-            🔍 Extract Contacts
+        <div className="flex bg-[#0f172a] p-1 rounded-lg border border-gray-600 w-full sm:w-auto">
+          <button onClick={() => setActiveMode('extract')} className={`flex-1 sm:flex-none px-3 md:px-5 py-1.5 md:py-2 rounded-md text-[10px] md:text-xs font-bold transition-all ${activeMode === 'extract' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
+            🔍 Extract
           </button>
-          <button onClick={() => setActiveMode('send')} className={`px-5 py-1.5 rounded-md text-xs font-bold transition-all ${activeMode === 'send' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
-            🚀 Send to Groups
+          <button onClick={() => setActiveMode('send')} className={`flex-1 sm:flex-none px-3 md:px-5 py-1.5 md:py-2 rounded-md text-[10px] md:text-xs font-bold transition-all ${activeMode === 'send' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>
+            🚀 Send
           </button>
         </div>
       </div>
 
       {/* ======================================================== */}
-      {/* VIEW 1: EXTRACT CONTACTS (Real Tools Only) */}
+      {/* VIEW 1: EXTRACT CONTACTS */}
       {/* ======================================================== */}
       {activeMode === 'extract' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 overflow-hidden">
+        <div className="flex flex-col lg:flex-row gap-4 md:gap-6 flex-1 overflow-y-auto lg:overflow-hidden">
           
           {/* Left: Input Modes */}
-          <div className="lg:col-span-5 flex flex-col gap-4 overflow-y-auto custom-scrollbar pr-1">
+          <div className="w-full lg:w-[400px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0">
             
             {/* Mode Selection */}
             <div className="flex bg-[#1e293b] border border-gray-700 rounded-xl p-1 shadow-md">
-               <button onClick={() => setExtractMethod('api')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${extractMethod === 'api' ? 'bg-[#0f172a] text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>
-                 🔗 Link Extractor (Needs API)
+               <button onClick={() => setExtractMethod('api')} className={`flex-1 py-2 md:py-2.5 rounded-lg text-[10px] md:text-xs font-bold transition-all ${extractMethod === 'api' ? 'bg-[#0f172a] text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>
+                 🔗 Link (API)
                </button>
-               <button onClick={() => setExtractMethod('parser')} className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${extractMethod === 'parser' ? 'bg-[#0f172a] text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>
-                 📝 Smart Parser (100% Free)
+               <button onClick={() => setExtractMethod('parser')} className={`flex-1 py-2 md:py-2.5 rounded-lg text-[10px] md:text-xs font-bold transition-all ${extractMethod === 'parser' ? 'bg-[#0f172a] text-white border border-gray-600' : 'text-gray-500 hover:text-gray-300'}`}>
+                 📝 Parser (Free)
                </button>
             </div>
 
             {/* Input Area Based on Mode */}
             {extractMethod === 'api' ? (
-              <div className="bg-[#1e293b] border border-gray-700 rounded-xl p-5 shadow-md animate-fade-in flex flex-col gap-4">
+              <div className="bg-[#1e293b] border border-gray-700 rounded-xl p-4 md:p-5 shadow-md animate-fade-in flex flex-col gap-3 md:gap-4">
                  <div>
-                    <h3 className="text-white font-bold text-sm mb-1">Group Link / ID</h3>
-                    <p className="text-[10px] text-gray-400 mb-3">Fetches Name, Number, and Admin status. Requires a paid API configuration in Advanced Settings.</p>
-                    <input type="text" value={groupLink} onChange={(e) => setGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/..." className="w-full bg-[#0f172a] border border-gray-600 rounded-lg p-3 text-sm text-white outline-none focus:border-fuchsia-500" />
+                    <h3 className="text-white font-bold text-xs md:text-sm mb-1">Group Link / ID</h3>
+                    <p className="text-[9px] md:text-[10px] text-gray-400 mb-2 md:mb-3">Requires a paid API config in Settings.</p>
+                    <input type="text" value={groupLink} onChange={(e) => setGroupLink(e.target.value)} placeholder="https://chat.whatsapp.com/..." className="w-full bg-[#0f172a] border border-gray-600 rounded-lg p-2.5 md:p-3 text-xs md:text-sm text-white outline-none focus:border-fuchsia-500" />
                  </div>
-                 <button onClick={handleApiFetch} disabled={isFetching} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-[1.02] text-white py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50">
+                 <button onClick={handleApiFetch} disabled={isFetching} className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-[1.02] text-white py-2.5 md:py-3 rounded-xl font-bold shadow-lg transition-all disabled:opacity-50 text-xs md:text-sm">
                     {isFetching ? '⏳ Querying API...' : 'Fetch via API ⚡'}
                  </button>
                  {waStatus !== 'connected' && (
-                    <p className="text-[10px] text-red-400 text-center border border-red-500/30 bg-red-500/10 p-2 rounded">⚠️ API is disconnected. This will fail until configured.</p>
+                    <p className="text-[9px] md:text-[10px] text-red-400 text-center border border-red-500/30 bg-red-500/10 p-2 rounded">⚠️ API is disconnected.</p>
                  )}
               </div>
             ) : (
-              <div className="bg-[#1e293b] border border-gray-700 rounded-xl p-5 shadow-md animate-fade-in flex flex-col gap-4 flex-1">
+              <div className="bg-[#1e293b] border border-gray-700 rounded-xl p-4 md:p-5 shadow-md animate-fade-in flex flex-col gap-3 md:gap-4 flex-1">
                  <div>
-                    <h3 className="text-white font-bold text-sm mb-1">Smart Text Parser</h3>
-                    <p className="text-[10px] text-gray-400 mb-2">1. Open WhatsApp Web > 2. Open Group Info > 3. Select & Copy all numbers > 4. Paste below.</p>
+                    <h3 className="text-white font-bold text-xs md:text-sm mb-1">Smart Text Parser</h3>
+                    <p className="text-[9px] md:text-[10px] text-gray-400 mb-1 md:mb-2">Paste copied text from WhatsApp Web Group Info.</p>
                  </div>
-                 <textarea value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="Paste copied text here..." className="flex-1 w-full bg-[#0f172a] border border-gray-600 rounded-lg p-3 text-white outline-none focus:border-fuchsia-500 resize-none font-mono text-xs custom-scrollbar"></textarea>
-                 <button onClick={handleParseText} className="w-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-[1.02] text-white py-3 rounded-xl font-bold shadow-lg transition-all">
-                    Clean & Extract Numbers
+                 <textarea value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="Paste copied text here..." className="flex-1 w-full min-h-[150px] lg:min-h-0 bg-[#0f172a] border border-gray-600 rounded-lg p-2.5 md:p-3 text-white outline-none focus:border-fuchsia-500 resize-none font-mono text-[10px] md:text-xs custom-scrollbar"></textarea>
+                 <button onClick={handleParseText} className="w-full bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-[1.02] text-white py-2.5 md:py-3 rounded-xl font-bold shadow-lg transition-all text-xs md:text-sm">
+                    Clean & Extract
                  </button>
               </div>
             )}
           </div>
 
           {/* Right: Output Table */}
-          <div className="lg:col-span-7 bg-[#1e293b] border border-gray-700 rounded-xl flex flex-col shadow-md overflow-hidden">
-            <div className="p-3 border-b border-gray-700 flex justify-between items-center bg-[#0f172a]">
-              <h3 className="text-white font-bold text-sm">Real Extracted Members ({extractedData.length})</h3>
-              <div className="flex gap-2">
-                 <button onClick={handleExportExcel} disabled={extractedData.length === 0} className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${extractedData.length > 0 ? 'bg-green-600/20 text-green-400 border border-green-500/50 hover:bg-green-600 hover:text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>
-                   📊 Download Excel
+          <div className="flex-1 bg-[#1e293b] border border-gray-700 rounded-xl flex flex-col shadow-md overflow-hidden min-h-[300px] lg:min-h-0">
+            <div className="p-3 border-b border-gray-700 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-[#0f172a] gap-2 sm:gap-0">
+              <h3 className="text-white font-bold text-xs md:text-sm">Extracted Members ({extractedData.length})</h3>
+              <div className="flex gap-2 w-full sm:w-auto">
+                 <button onClick={handleExportExcel} disabled={extractedData.length === 0} className={`flex-1 sm:flex-none px-2 md:px-3 py-1.5 rounded text-[10px] md:text-xs font-bold transition-all ${extractedData.length > 0 ? 'bg-green-600/20 text-green-400 border border-green-500/50 hover:bg-green-600 hover:text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>
+                   📊 Excel
                  </button>
-                 <button onClick={handleExportVCard} disabled={extractedData.length === 0} className={`px-3 py-1.5 rounded text-xs font-bold transition-all ${extractedData.length > 0 ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600 hover:text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>
-                   📱 Save to Contacts (vCard)
+                 <button onClick={handleExportVCard} disabled={extractedData.length === 0} className={`flex-1 sm:flex-none px-2 md:px-3 py-1.5 rounded text-[10px] md:text-xs font-bold transition-all ${extractedData.length > 0 ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50 hover:bg-blue-600 hover:text-white' : 'bg-gray-800 text-gray-600 cursor-not-allowed'}`}>
+                   📱 vCard
                  </button>
               </div>
             </div>
             
             <div className="flex-1 overflow-auto custom-scrollbar bg-[#0f172a]/50">
                {extractedData.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-60">
-                    <span className="text-4xl mb-2">👥</span>
-                    <p className="text-xs">Extracted real numbers will appear here.</p>
+                  <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-60 min-h-[200px]">
+                    <span className="text-3xl md:text-4xl mb-2">👥</span>
+                    <p className="text-[10px] md:text-xs">Numbers will appear here.</p>
                   </div>
                ) : (
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-[10px] md:text-xs whitespace-nowrap min-w-[400px]">
                     <thead className="bg-[#1e293b] text-gray-400 sticky top-0 shadow-sm z-10">
                       <tr>
-                        <th className="p-3 w-16 text-center">#</th>
-                        <th className="p-3">Name</th>
-                        <th className="p-3">Phone Number</th>
-                        <th className="p-3 text-center">Role</th>
+                        <th className="p-2 md:p-3 w-10 md:w-16 text-center">#</th>
+                        <th className="p-2 md:p-3">Name</th>
+                        <th className="p-2 md:p-3">Phone Number</th>
+                        <th className="p-2 md:p-3 text-center">Role</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-800">
@@ -305,7 +304,7 @@ const GroupTools = () => {
                           <td className="p-2 text-gray-300 font-medium">{item.name}</td>
                           <td className="p-2 text-fuchsia-400 font-mono tracking-wide">{item.phone}</td>
                           <td className="p-2 text-center">
-                            {item.isAdmin ? <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[10px] font-bold">ADMIN</span> : <span className="text-gray-600 text-[10px]">MEMBER</span>}
+                            {item.isAdmin ? <span className="bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded text-[8px] md:text-[10px] font-bold">ADMIN</span> : <span className="text-gray-600 text-[8px] md:text-[10px]">MEMBER</span>}
                           </td>
                         </tr>
                       ))}
@@ -319,39 +318,39 @@ const GroupTools = () => {
       )}
 
       {/* ======================================================== */}
-      {/* VIEW 2: SEND TO GROUPS (Unchanged) */}
+      {/* VIEW 2: SEND TO GROUPS */}
       {/* ======================================================== */}
       {activeMode === 'send' && (
-         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 overflow-hidden">
+         <div className="flex flex-col lg:flex-row gap-4 flex-1 overflow-y-auto lg:overflow-hidden">
           
          {/* Left Column: Setup */}
-         <div className="lg:col-span-4 flex flex-col gap-4 overflow-y-auto pr-1 custom-scrollbar">
+         <div className="w-full lg:w-[350px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0">
            
            <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md">
-             <h3 className="text-white font-bold text-sm mb-2">1. Upload Group List</h3>
+             <h3 className="text-white font-bold text-xs md:text-sm mb-2">1. Upload Group List</h3>
              <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
                <input type="file" accept=".xlsx, .csv" onChange={handleGroupUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                <p className="text-xl mb-1">🔗</p>
-               <p className="text-[10px] text-gray-400">{file ? file.name : "Upload Excel with Links"}</p>
+               <p className="text-[9px] md:text-[10px] text-gray-400">{file ? file.name : "Upload Excel with Links"}</p>
              </div>
-             {groups.length > 0 && <p className="text-[10px] font-bold text-green-400 mt-2">✅ {groups.length} Groups Loaded</p>}
+             {groups.length > 0 && <p className="text-[9px] md:text-[10px] font-bold text-green-400 mt-2">✅ {groups.length} Groups Loaded</p>}
            </div>
 
            <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md">
-              <h3 className="text-white font-bold text-sm mb-2">2. Attach Media (Optional)</h3>
+              <h3 className="text-white font-bold text-xs md:text-sm mb-2">2. Attach Media (Optional)</h3>
               <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-lg p-3 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
                  <input type="file" accept="*/*" onChange={(e) => setMedia(e.target.files[0])} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                  <p className="text-xl mb-1">📎</p>
-                 <p className="text-[10px] text-gray-400 truncate px-2">{media ? media.name : "Any File / Image"}</p>
+                 <p className="text-[9px] md:text-[10px] text-gray-400 truncate px-2">{media ? media.name : "Any File / Image"}</p>
                </div>
            </div>
 
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-1 flex flex-col">
-             <h3 className="text-white font-bold text-sm mb-2">3. Message Text</h3>
+           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex-1 flex flex-col min-h-[150px]">
+             <h3 className="text-white font-bold text-xs md:text-sm mb-2">3. Message Text</h3>
              <textarea 
                value={message}
                onChange={(e) => setMessage(e.target.value)}
-               className="flex-1 w-full bg-[#0f172a] border border-gray-600 rounded-lg p-3 text-white text-xs outline-none focus:border-fuchsia-500 resize-none"
+               className="flex-1 w-full min-h-[100px] bg-[#0f172a] border border-gray-600 rounded-lg p-3 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar"
                placeholder="Type group message here..."
              ></textarea>
            </div>
@@ -359,19 +358,19 @@ const GroupTools = () => {
          </div>
 
          {/* Right Column: Controls & Logs */}
-         <div className="lg:col-span-8 flex flex-col gap-4">
+         <div className="flex-1 flex flex-col gap-4">
            
-           <div className="bg-[#1e293b] p-4 rounded-xl border border-gray-700 shadow-md flex items-center justify-between">
+           <div className="bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-3 md:gap-0">
              <div>
-                <h3 className="text-white font-bold text-base">Group Broadcaster</h3>
-                <p className="text-[10px] text-gray-400">Blast to multiple groups safely.</p>
+                <h3 className="text-white font-bold text-sm md:text-base">Group Broadcaster</h3>
+                <p className="text-[9px] md:text-[10px] text-gray-400">Blast to multiple groups safely.</p>
              </div>
-             <div className="flex items-center gap-3">
-                <div className="bg-[#0f172a] px-2 py-1.5 rounded-lg border border-gray-600 flex items-center gap-2">
-                   <span className="text-gray-400 text-[10px]">Delay:</span>
-                   <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 bg-transparent text-white font-bold text-center outline-none text-xs" />
+             <div className="flex items-center gap-2 md:gap-3 w-full md:w-auto">
+                <div className="bg-[#0f172a] px-2 py-1.5 md:py-2 rounded-lg border border-gray-600 flex items-center justify-center gap-2 flex-1 md:flex-none">
+                   <span className="text-gray-400 text-[9px] md:text-[10px]">Delay:</span>
+                   <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 bg-transparent text-white font-bold text-center outline-none text-[10px] md:text-xs" />
                 </div>
-                <button onClick={startGroupCampaign} disabled={groups.length === 0 || campaignState === 'running' || waStatus !== 'connected'} className={`px-6 py-2 rounded-lg text-sm font-bold text-white shadow-lg transition-all ${(groups.length === 0 || campaignState === 'running' || waStatus !== 'connected') ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-105'}`}>
+                <button onClick={startGroupCampaign} disabled={groups.length === 0 || campaignState === 'running' || waStatus !== 'connected'} className={`flex-1 md:flex-none px-4 md:px-6 py-2 rounded-lg text-xs md:text-sm font-bold text-white shadow-lg transition-all ${(groups.length === 0 || campaignState === 'running' || waStatus !== 'connected') ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:scale-105'}`}>
                   {campaignState === 'running' ? '🚀 Sending...' : 'Start Blast ▶'}
                 </button>
              </div>
@@ -380,13 +379,13 @@ const GroupTools = () => {
            {campaignState !== 'idle' && (
              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
                <div className="flex justify-between items-center mb-1.5">
-                  <span className="text-xs font-bold text-white">Blast Progress</span>
-                  <span className="text-xs font-mono text-blue-400">{progress}%</span>
+                  <span className="text-[10px] md:text-xs font-bold text-white">Blast Progress</span>
+                  <span className="text-[10px] md:text-xs font-mono text-blue-400">{progress}%</span>
                </div>
-               <div className="w-full bg-gray-700 rounded-full h-2 mb-1.5 overflow-hidden">
-                  <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+               <div className="w-full bg-gray-700 rounded-full h-1.5 md:h-2 mb-1.5 overflow-hidden">
+                  <div className="bg-gradient-to-r from-blue-500 to-indigo-500 h-full rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
                </div>
-               <div className="flex justify-between text-[10px] text-gray-400 font-medium">
+               <div className="flex justify-between text-[9px] md:text-[10px] text-gray-400 font-medium">
                   <span className="text-green-400">Delivered: {stats.sent}</span>
                   <span className="text-red-400">Failed: {stats.failed}</span>
                   <span className="text-yellow-400">Pending: {stats.total - stats.sent - stats.failed}</span>
@@ -394,21 +393,21 @@ const GroupTools = () => {
              </div>
            )}
 
-           <div className="bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex flex-col flex-1 overflow-hidden">
+           <div className="bg-[#1e293b] rounded-xl border border-gray-700 shadow-md flex flex-col flex-1 overflow-hidden min-h-[300px] lg:min-h-0">
              <div className="p-3 border-b border-gray-700 bg-[#0f172a] font-bold text-white flex justify-between items-center">
-               <span className="text-sm">📡 Action Logs</span>
-               <span className="text-[10px] bg-gray-800 px-2 py-1 rounded">Total: {stats.total}</span>
+               <span className="text-xs md:text-sm">📡 Action Logs</span>
+               <span className="text-[9px] md:text-[10px] bg-gray-800 px-2 py-1 rounded">Total: {stats.total}</span>
              </div>
-             <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-[#0f172a]/30">
+             <div className="flex-1 overflow-y-auto p-2 md:p-3 space-y-2 custom-scrollbar bg-[#0f172a]/30">
                {logs.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center opacity-40 text-gray-500">
-                     <span className="text-4xl mb-2">💬</span>
-                     <p className="text-xs">Upload group links and start.</p>
+                     <span className="text-3xl md:text-4xl mb-2">💬</span>
+                     <p className="text-[10px] md:text-xs">Upload group links and start.</p>
                   </div>
                ) : logs.map(log => (
                   <div key={log.id} className="flex justify-between items-center bg-[#0f172a] p-2 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors">
-                     <span className="text-xs font-bold text-gray-300 truncate w-48">{log.to}</span>
-                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
+                     <span className="text-[10px] md:text-xs font-bold text-gray-300 truncate w-[150px] md:w-48">{log.to}</span>
+                     <span className={`text-[8px] md:text-[9px] font-bold px-1.5 md:px-2 py-0.5 rounded uppercase ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>
                        {log.status}
                      </span>
                   </div>
