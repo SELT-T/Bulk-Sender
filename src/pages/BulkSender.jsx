@@ -54,7 +54,7 @@ const BulkSender = () => {
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState({ sent: 0, failed: 0, total: 0 });
   
-  // 🟢 YAHAN DEFAULT TIME 10 KAR DIYA GAYA HAI
+  // 🟢 YAHAN DEFAULT TIME 10 KAR DIYA GAYA HAI (ab iska use nahi hoga, sirf UI ke liye)
   const [delay, setDelay] = useState(10);
 
   const pauseRef = useRef(false);
@@ -333,6 +333,19 @@ const BulkSender = () => {
     });
   };
 
+  // 🟢 Helper: wait with respect to pause & stop (used for random delay and batch pause)
+  const waitWithCheck = async (ms) => {
+    const start = Date.now();
+    while (Date.now() - start < ms) {
+      if (stopRef.current) throw new Error('Stopped');
+      if (pauseRef.current) {
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+  };
+
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
     
@@ -343,6 +356,9 @@ const BulkSender = () => {
     setProgress(0);
     let currentSent = 0;
     let currentFailed = 0;
+    let messagesProcessed = 0;                     // 🟢 batch pause counter
+    let currentBatchSize = Math.floor(Math.random() * (30 - 20 + 1) + 20); // 🟢 random 20-30
+    const BATCH_PAUSE_MS = 30000;                  // 🟢 30 seconds batch sleep
 
     let rawBase64MediaData = null;
     let mimeType = null;
@@ -441,13 +457,35 @@ const BulkSender = () => {
       } catch (err) {
         currentFailed++;
         setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
-        await new Promise(r => setTimeout(r, 5000));
+        await waitWithCheck(5000);
       }
       
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
       setProgress(Math.round(((i + 1) / contacts.length) * 100));
 
-      if (i < contacts.length - 1) await new Promise(r => setTimeout(r, delay * 1000));
+      messagesProcessed++; // 🟢 count this message
+
+      // 🟢 Batch Pause: after every currentBatchSize messages (20-30)
+      if (messagesProcessed % currentBatchSize === 0 && messagesProcessed > 0 && messagesProcessed < contacts.length) {
+        try {
+          await waitWithCheck(BATCH_PAUSE_MS);
+          // generate new random batch size for next block
+          currentBatchSize = Math.floor(Math.random() * (30 - 20 + 1) + 20);
+        } catch (err) {
+          // stopped during batch pause
+          break;
+        }
+      }
+
+      // 🟢 Randomized delay between messages (8 to 18 seconds)
+      if (i < contacts.length - 1 && !stopRef.current) {
+        const randomDelaySec = Math.floor(Math.random() * (18 - 8 + 1) + 8);
+        try {
+          await waitWithCheck(randomDelaySec * 1000);
+        } catch (err) {
+          break;
+        }
+      }
     }
     
     if (!stopRef.current) setCampaignState('completed');
