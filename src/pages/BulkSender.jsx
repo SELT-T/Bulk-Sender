@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const BulkSender = () => {
+  // --- Core States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
   const [countryCode, setCountryCode] = useState('91'); 
@@ -13,18 +14,41 @@ const BulkSender = () => {
   const [waStatus, setWaStatus] = useState('checking'); 
   const [connectionMode, setConnectionMode] = useState('api');
   
+  // --- Advanced Studio States (Merged from Personalized Sender) ---
   const [showSticker, setShowSticker] = useState(false);
-  const [stickerText, setStickerText] = useState("{{Name}}");
+  const [activeTab, setActiveTab] = useState('name');
+
+  // 1. Name Tag Config
+  const [nameText, setNameText] = useState("{{Name}}");
+  const [nameFont, setNameFont] = useState("Arial, sans-serif");
+  const [nameSize, setNameSize] = useState(32);
+  const [nameColor, setNameColor] = useState("#ffffff");
+  const [nameOutline, setNameOutline] = useState("none");
+  const [nameWeight, setNameWeight] = useState("bold");
+  const [nameStyle, setNameStyle] = useState("normal");
+
+  // 2. Sub-Text Config
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
-  const [stickerColor, setStickerColor] = useState("#ffffff");
-  const [stickerBgColor, setStickerBgColor] = useState("rgba(0, 0, 0, 0.4)"); 
-  const [stickerBorder, setStickerBorder] = useState("none"); 
-  const [fontFamily, setFontFamily] = useState("Arial, sans-serif");
-  const [stickerPos, setStickerPos] = useState({ x: 50, y: 50 }); 
+  const [subFont, setSubFont] = useState("Arial, sans-serif");
+  const [subSize, setSubSize] = useState(14);
+  const [subColor, setSubColor] = useState("#fbcfe8"); 
+  const [subOutline, setSubOutline] = useState("none");
+  const [subWeight, setSubWeight] = useState("normal");
+  const [subStyle, setSubStyle] = useState("normal");
+
+  // 3. Box Config
+  const [boxBg, setBoxBg] = useState("rgba(0, 0, 0, 0.5)");
+  const [boxBorder, setBoxBorder] = useState("none");
+  const [boxRadius, setBoxRadius] = useState(12);
+  const [boxPadding, setBoxPadding] = useState(16);
+  
+  // Placement
   const [stickerWidth, setStickerWidth] = useState(250); 
+  const [stickerPos, setStickerPos] = useState({ x: 50, y: 70 }); 
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   
+  // --- Campaign States ---
   const [campaignState, setCampaignState] = useState('idle'); 
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
@@ -37,12 +61,37 @@ const BulkSender = () => {
   
   const API_URL = "https://reachify-api.selt-3232.workers.dev";
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
-  const user = JSON.parse(localStorage.getItem('reachify_user'));
+  const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
+
+  // FONT OPTIONS
+  const fontOptions = [
+    { label: "Modern (Arial)", value: "Arial, sans-serif" },
+    { label: "Classic (Times)", value: "'Times New Roman', serif" },
+    { label: "Typewriter", value: "'Courier New', monospace" },
+    { label: "Elegant (Georgia)", value: "Georgia, serif" },
+    { label: "Heavy (Impact)", value: "'Impact', sans-serif" },
+    { label: "Clean (Verdana)", value: "Verdana, sans-serif" },
+    { label: "Round (Comic Sans)", value: "'Comic Sans MS', cursive" },
+    { label: "Stylish Script", value: "'Brush Script MT', cursive" },
+    { label: "Devanagari (Mukta)", value: "'Mukta', sans-serif" },
+    { label: "Devanagari (Kalam)", value: "'Kalam', cursive" },
+    { label: "Devanagari (Poppins)", value: "'Poppins', sans-serif" }
+  ];
+
+  const outlineOptions = [
+    { label: "No Outline", value: "none" },
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Red", value: "#ef4444" },
+    { label: "Blue", value: "#3b82f6" },
+    { label: "Gold", value: "#fbbf24" },
+    { label: "Fuchsia", value: "#d946ef" }
+  ];
 
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
-      if (!user) return setWaStatus('disconnected');
+      if (!user.email || user.email === 'demo@reachify.com') return setWaStatus('disconnected');
       const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
       const mode = savedSettings.wa_connection_mode || 'api';
       setConnectionMode(mode);
@@ -74,7 +123,7 @@ const BulkSender = () => {
     }, 45000); 
 
     return () => clearInterval(interval);
-  }, [user]);
+  }, [user.email]);
 
   const handleMediaUpload = (e) => {
     const uploadedFile = e.target.files[0];
@@ -82,12 +131,19 @@ const BulkSender = () => {
       setMedia(uploadedFile);
       if (uploadedFile.type.startsWith('image/')) {
         setMediaPreview(URL.createObjectURL(uploadedFile));
-        setShowSticker(true);
+        setShowSticker(true); // Auto-enable sticker for images
       } else {
         setMediaPreview(null);
-        setShowSticker(false);
+        setShowSticker(false); // Disable for PDF/Video
       }
     }
+  };
+
+  // 🟢 NEW: Clear Media Feature
+  const clearMedia = () => {
+    setMedia(null);
+    setMediaPreview(null);
+    setShowSticker(false);
   };
 
   const handleFileUpload = (e) => {
@@ -140,6 +196,14 @@ const BulkSender = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
+  // 🟢 NEW: Clear Contacts Feature
+  const clearContacts = () => {
+    setContacts([]);
+    setFile(null);
+    setShowContactPreview(false);
+    setStats({ sent: 0, failed: 0, total: 0 });
+  };
+
   const applyCountryCode = () => {
     if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
     const code = countryCode.replace('+', '').trim();
@@ -161,7 +225,7 @@ const BulkSender = () => {
     if ((!isDragging && !isResizing) || !imageContainerRef.current) return;
     
     // Prevent default touch behavior so screen doesn't scroll while dragging on mobile
-    if(e.touches) e.preventDefault(); 
+    if(e.touches && e.cancelable) e.preventDefault(); 
 
     const rect = imageContainerRef.current.getBoundingClientRect();
     const clientX = e.clientX || e.touches?.[0].clientX;
@@ -174,7 +238,7 @@ const BulkSender = () => {
     } else if (isResizing) {
       const stickerCenterX = (stickerPos.x / 100) * rect.width + rect.left;
       const newWidth = Math.abs(clientX - stickerCenterX) * 2;
-      setStickerWidth(Math.max(100, Math.min(newWidth, rect.width * 0.9))); 
+      setStickerWidth(Math.max(100, Math.min(newWidth, rect.width * 0.95))); 
     }
   };
 
@@ -195,47 +259,71 @@ const BulkSender = () => {
             const x = (stickerPos.x / 100) * img.width;
             const y = (stickerPos.y / 100) * img.height;
 
-            const textStr = stickerText.replace(/{{Name}}/gi, contactName || '');
+            const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
             const subTextStr = subText || '';
 
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            const fontSize1 = Math.max(24 * scale * (stickerWidth/250), 16);
-            const fontSize2 = Math.max(14 * scale * (stickerWidth/250), 10);
-            const pad = 12 * scale;
+            // Dynamic Sizing based on PersonalizedSender math
+            const dynamicNameSize = Math.max(nameSize * scale * (stickerWidth/320), 16);
+            const dynamicSubSize = Math.max(subSize * scale * (stickerWidth/320), 10);
+            const dynamicPadding = boxPadding * scale;
+            const dynamicRadius = boxRadius * scale;
 
-            ctx.font = `bold ${fontSize1}px ${fontFamily}`;
+            ctx.font = `${nameWeight} ${dynamicNameSize}px ${nameFont}`;
             const tWidth1 = ctx.measureText(textStr).width;
-            ctx.font = `normal ${fontSize2}px ${fontFamily}`;
+            ctx.font = `${subWeight} ${dynamicSubSize}px ${subFont}`;
             const tWidth2 = subTextStr ? ctx.measureText(subTextStr).width : 0;
 
-            const boxWidth = Math.max(tWidth1, tWidth2) + (pad * 4);
-            const boxHeight = subTextStr ? (fontSize1 + fontSize2 + (pad * 3)) : (fontSize1 + (pad * 2));
+            const boxW = Math.max(tWidth1, tWidth2) + (dynamicPadding * 4);
+            const boxH = subTextStr ? (dynamicNameSize + dynamicSubSize + (dynamicPadding * 3)) : (dynamicNameSize + (dynamicPadding * 2));
 
-            if (stickerBgColor && stickerBgColor !== 'transparent') {
-                ctx.fillStyle = stickerBgColor;
-                ctx.fillRect(x - boxWidth/2, y - boxHeight/2, boxWidth, boxHeight);
+            // Draw Background Box
+            if (boxBg && boxBg !== 'transparent') {
+                ctx.fillStyle = boxBg;
+                ctx.beginPath();
+                ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                ctx.fill();
             }
 
-            if (stickerBorder && stickerBorder !== 'none') {
-                if (stickerBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
-                else if (stickerBorder.includes('gold')) ctx.strokeStyle = 'gold';
+            // Draw Border
+            if (boxBorder && boxBorder !== 'none') {
+                if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
+                else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
+                else if (boxBorder.includes('black')) ctx.strokeStyle = 'black';
                 else ctx.strokeStyle = 'white';
                 ctx.lineWidth = 3 * scale;
-                if (stickerBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
-                ctx.strokeRect(x - boxWidth/2, y - boxHeight/2, boxWidth, boxHeight);
+                if (boxBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
+                ctx.beginPath();
+                ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                ctx.stroke();
                 ctx.setLineDash([]);
             }
 
-            ctx.fillStyle = stickerColor;
-            ctx.font = `bold ${fontSize1}px ${fontFamily}`;
-            ctx.fillText(textStr, x, subTextStr ? y - fontSize2/2 : y);
-
+            // Draw Sub Text
             if (subTextStr) {
-                ctx.font = `normal ${fontSize2}px ${fontFamily}`;
-                ctx.fillText(subTextStr, x, y + fontSize1/2 + pad/2);
+                ctx.fillStyle = subColor;
+                ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
+                if (subOutline !== 'none') {
+                   ctx.strokeStyle = subOutline;
+                   ctx.lineWidth = 2 * scale;
+                   ctx.strokeText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
+                }
+                ctx.fillText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
             }
+
+            // Draw Main Name Text
+            ctx.fillStyle = nameColor;
+            ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
+            
+            if (nameOutline !== 'none') {
+                ctx.strokeStyle = nameOutline;
+                ctx.lineWidth = 3 * scale;
+                ctx.strokeText(textStr, x, subTextStr ? y - dynamicSubSize/2 : y);
+            }
+            ctx.fillText(textStr, x, subTextStr ? y - dynamicSubSize/2 : y);
+
             resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
         img.onerror = () => resolve(rawBase64); 
@@ -293,6 +381,8 @@ const BulkSender = () => {
         let res;
         
         let finalMediaToSend = rawBase64MediaData;
+        
+        // 🟢 FIX: Only apply personalized base64 generation if it's an image AND showSticker is true
         if (connectionMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
         }
@@ -306,20 +396,33 @@ const BulkSender = () => {
                text: personalizedMsg,
                isGroup: false,
                mediaBase64: finalMediaToSend, 
-               mediaType: mimeType,           
-               fileName: originalFileName     
+               mediaType: mimeType,            
+               fileName: originalFileName      
              })
            });
         } else {
+           // Pro API Payload with Advanced Sticker Config merged from Personalized Sender
+           const payload = {
+             email: user?.email || 'demo@reachify.com', 
+             phone: contact.phone, 
+             message: personalizedMsg, 
+             media_type: media?.type || 'text',
+             sticker_config: (showSticker && media?.type.startsWith('image')) ? { 
+                 name: { text: contact.name, font: nameFont, size: nameSize, color: nameColor, outline: nameOutline, weight: nameWeight, style: nameStyle },
+                 sub: { text: subText, font: subFont, size: subSize, color: subColor, outline: subOutline, weight: subWeight, style: subStyle },
+                 box: { bg: boxBg, border: boxBorder, radius: boxRadius, padding: boxPadding, width: stickerWidth },
+                 x: stickerPos.x, y: stickerPos.y 
+             } : null
+           };
            res = await fetch(`${API_URL}/send-message`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ email: user?.email || 'demo@reachify.com', phone: contact.phone, message: personalizedMsg, media_type: media?.type || 'text', sticker_config: (showSticker && media?.type.startsWith('image')) ? { name_text: contact.name, sub_text: subText, color: stickerColor, bg_color: stickerBgColor, font: fontFamily, width: stickerWidth, border: stickerBorder, x: stickerPos.x, y: stickerPos.y } : null })
+             body: JSON.stringify(payload)
            });
         }
 
         const data = await res.json(); 
 
-        if (res.ok && data.success) {
+        if (res.ok && data.success !== false) {
           currentSent++;
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
@@ -335,7 +438,7 @@ const BulkSender = () => {
         }
       } catch (err) {
         currentFailed++;
-        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Waking Server..." } : l));
+        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
         await new Promise(r => setTimeout(r, 5000));
       }
       
@@ -353,10 +456,10 @@ const BulkSender = () => {
 
   return (
     // 🔥 MOBILE WRAPPER FIX: min-h-screen for mobile, fixed height for PC
-    <div className="flex flex-col min-h-screen lg:h-[calc(100vh-100px)] gap-4 md:gap-6 max-w-7xl mx-auto p-2 pb-20 lg:pb-2" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
+    <div className="flex flex-col min-h-screen lg:h-[calc(100vh-100px)] gap-4 md:gap-6 max-w-[1400px] mx-auto p-2 pb-20 lg:pb-2" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
       
       {/* HEADER SECTION (Responsive wrap) */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
              Bulk Sender Pro
@@ -401,7 +504,7 @@ const BulkSender = () => {
       </div>
 
       {campaignState !== 'idle' && (
-        <div className="bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-lg animate-fade-in">
+        <div className="bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-lg animate-fade-in flex-shrink-0">
           <div className="flex justify-between items-center mb-2"><span className="text-xs md:text-sm font-bold text-white">Campaign Progress</span><span className="text-xs md:text-sm font-mono text-fuchsia-400">{progress}%</span></div>
           <div className="w-full bg-gray-700 rounded-full h-2 md:h-3 mb-2 overflow-hidden"><div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 h-2 md:h-3 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div></div>
           <div className="flex justify-between text-[10px] md:text-xs text-gray-400 font-medium"><span className="text-green-400">✅ Sent: {stats.sent}</span><span className="text-red-400">❌ Failed: {stats.failed}</span><span className="text-blue-400">⏳ Pending: {stats.total - stats.sent - stats.failed}</span></div>
@@ -409,96 +512,266 @@ const BulkSender = () => {
       )}
 
       {/* 🔥 MOBILE LAYOUT FIX: Changed from grid to flex-col on mobile, flex-row on PC */}
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto lg:overflow-hidden">
+      <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto lg:overflow-hidden custom-scrollbar">
         
         {/* COLUMN 1: SETUP (Excel, File, Stylings) */}
-        <div className="w-full lg:w-[320px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar lg:pb-10 flex-shrink-0">
+        <div className="w-full lg:w-[340px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0 lg:pb-10">
           
-          <div className="bg-[#1e293b] p-4 md:p-5 rounded-2xl border border-gray-700 shadow-lg">
-            <h3 className="text-white font-bold text-[11px] md:text-sm mb-3">1. Upload Contacts</h3>
-            <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-xl p-3 md:p-4 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
-              <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-              <p className="text-xl md:text-2xl mb-1">📊</p>
-              <p className="text-[10px] md:text-xs text-gray-300">{file ? file.name : "Upload Excel File"}</p>
-            </div>
-            {contacts.length > 0 && (
-              <div className="mt-4 animate-fade-in-up">
-                <div className="flex justify-between items-center mb-3 bg-green-500/10 border border-green-500/30 px-3 py-2 rounded-lg">
-                  <span className="text-[10px] md:text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
-                  <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">{showContactPreview ? 'Hide ▲' : 'View ▼'}</button>
-                </div>
-                {showContactPreview && (
-                  <div className="animate-fade-in">
-                    <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
-                      <span className="text-[10px] text-gray-400 font-bold whitespace-nowrap">Code: +</span>
-                      <input type="text" value={countryCode} onChange={e => setCountryCode(e.target.value)} className="w-8 bg-transparent text-white text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" placeholder="91" />
-                      <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[10px] rounded font-bold py-1.5 transition-all">Apply to All</button>
-                    </div>
-                    <div className="max-h-48 md:max-h-64 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner scroll-smooth custom-scrollbar">
-                      {contacts.map((c, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-[10px] md:text-[11px] border-b border-gray-800 pb-1">
-                          <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
-                          <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
-                        </div>
-                      ))}
-                    </div>
+          {/* STEP 1 & 2 GRIDS */}
+          <div className="grid grid-cols-2 gap-2 md:gap-3 flex-shrink-0">
+             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
+               <div className="flex justify-between items-center mb-2">
+                 <h3 className="text-white font-bold text-[10px] md:text-[11px]">1. Contacts</h3>
+                 {contacts.length > 0 && <button onClick={clearContacts} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
+               </div>
+               <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
+                 <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                 <p className="text-base md:text-lg mb-0.5">📊</p>
+                 <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{file ? file.name : "Upload Excel"}</p>
+               </div>
+             </div>
+             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
+               <div className="flex justify-between items-center mb-2">
+                 <h3 className="text-white font-bold text-[10px] md:text-[11px]">2. Any File</h3>
+                 {media && <button onClick={clearMedia} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
+               </div>
+               <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
+                  <input type="file" accept="*/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  <p className="text-base md:text-lg mb-0.5">📎</p>
+                  <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{media ? media.name : "Attach File"}</p>
+               </div>
+             </div>
+          </div>
+
+          {/* EXCEL PREVIEW */}
+          {contacts.length > 0 && (
+            <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 animate-fade-in-up">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-[10px] md:text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
+                <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[9px] md:text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">{showContactPreview ? 'Hide ▲' : 'View ▼'}</button>
+              </div>
+              {showContactPreview && (
+                <div className="animate-fade-in">
+                  <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
+                    <span className="text-[9px] md:text-[10px] text-gray-400 font-bold whitespace-nowrap">Add Code: +</span>
+                    <input type="text" value={countryCode} onChange={e => setCountryCode(e.target.value)} className="w-8 bg-transparent text-white text-[10px] md:text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" placeholder="91" />
+                    <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[9px] md:text-[10px] rounded font-bold py-1.5 transition-all">Apply to All</button>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="bg-[#1e293b] p-4 md:p-5 rounded-2xl border border-gray-700 shadow-lg">
-             <h3 className="text-white font-bold text-[11px] md:text-sm mb-1">2. Upload File (Any)</h3>
-             <div className="relative group cursor-pointer border border-dashed border-gray-600 rounded-xl p-3 md:p-4 text-center hover:border-fuchsia-500 bg-[#0f172a] transition-all">
-                <input type="file" accept="*/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <p className="text-xl md:text-2xl mb-1">📎</p><p className="text-[10px] md:text-xs text-gray-300 truncate px-2">{media ? media.name : "Click to attach file"}</p>
-              </div>
-          </div>
-
-          <div className="bg-[#1e293b] p-4 md:p-5 rounded-2xl border border-gray-700 shadow-lg">
-            <h3 className="text-white font-bold text-[11px] md:text-sm mb-3">3. Personalization & Styles</h3>
-            <div className="flex items-center justify-between bg-[#0f172a] p-2 md:p-3 rounded-lg border border-gray-600 mb-3">
-               <span className="text-[10px] md:text-sm text-white font-medium">✨ Image Sticker</span>
-               <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} disabled={!mediaPreview} className="w-4 h-4 md:w-5 md:h-5 accent-fuchsia-500 disabled:opacity-50" />
+                  <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner scroll-smooth custom-scrollbar">
+                    {contacts.map((c, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-[9px] md:text-[10px] border-b border-gray-800 pb-1">
+                        <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
+                        <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
-            {showSticker && mediaPreview && (
-              <div className="space-y-3 md:space-y-4 mb-4 p-3 md:p-4 border border-fuchsia-500/30 bg-[#0f172a] rounded-lg animate-fade-in shadow-inner">
-                 <div><label className="text-[9px] md:text-[10px] text-gray-400">Sub-text (Address)</label><input type="text" value={subText} onChange={(e) => setSubText(e.target.value)} placeholder="e.g. सपरिवार आमंत्रित हैं" className="w-full bg-[#1e293b] border border-gray-600 rounded p-2 text-[10px] md:text-xs text-white outline-none mt-1 focus:border-fuchsia-500"/></div>
-                 <div className="grid grid-cols-2 gap-2 md:gap-3">
-                    <div><label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Font Style</label><select value={fontFamily} onChange={(e) => setFontFamily(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] md:text-xs text-white outline-none"><option value="Arial, sans-serif">Arial</option><option value="'Times New Roman', serif">Times New</option><option value="'Courier New', monospace">Courier</option><option value="'Georgia', serif">Georgia</option></select></div>
-                    <div><label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Border Style</label><select value={stickerBorder} onChange={(e) => setStickerBorder(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] md:text-xs text-white outline-none"><option value="none">None</option><option value="2px solid white">Solid White</option><option value="2px dashed fuchsia">Dashed Pink</option><option value="2px solid gold">Solid Gold</option></select></div>
-                 </div>
-                 <div className="grid grid-cols-2 gap-2 md:gap-3">
-                    <div><label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Text Color</label><div className="flex items-center gap-2 bg-[#1e293b] p-1 rounded border border-gray-600"><input type="color" value={stickerColor} onChange={(e) => setStickerColor(e.target.value)} className="w-5 h-5 md:w-6 md:h-6 rounded cursor-pointer bg-transparent border-none"/><span className="text-[9px] md:text-[10px] text-gray-300">{stickerColor}</span></div></div>
-                    <div><label className="text-[9px] md:text-[10px] text-gray-400 block mb-1">Background</label><select value={stickerBgColor} onChange={(e) => setStickerBgColor(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] md:text-xs text-white outline-none"><option value="rgba(0, 0, 0, 0.4)">Dark (Glass)</option><option value="rgba(255, 255, 255, 0.4)">Light (Glass)</option><option value="transparent">Transparent</option><option value="#000000">Solid Black</option></select></div>
-                 </div>
-              </div>
+          )}
+
+          {/* STEP 3: ADVANCED STYLING (MERGED FROM PERSONALIZED) */}
+          <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col">
+            <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2">3. WhatsApp Message</h3>
+            <textarea value={message} onChange={(e) => setMessage(e.target.value)} className="w-full h-16 md:h-20 bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar mb-3" placeholder="Message text... use {{Name}}"></textarea>
+
+            {/* SHOW ADVANCED STUDIO ONLY IF IMAGE IS UPLOADED */}
+            {mediaPreview && (
+               <div className="border border-fuchsia-500/40 rounded-lg overflow-hidden flex flex-col">
+                  <div className="flex items-center justify-between bg-fuchsia-500/10 p-2 md:p-3 border-b border-fuchsia-500/40">
+                     <span className="text-[10px] md:text-xs text-white font-bold">✨ Smart Image Sticker</span>
+                     <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} className="w-4 h-4 md:w-5 md:h-5 accent-fuchsia-500" />
+                  </div>
+                  
+                  {showSticker && (
+                     <>
+                        {/* TABS */}
+                        <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
+                           <button onClick={()=>setActiveTab('name')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name</button>
+                           <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
+                           <button onClick={()=>setActiveTab('box')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box</button>
+                        </div>
+
+                        {/* TAB CONTENTS */}
+                        <div className="p-3 bg-[#0f172a] space-y-3 lg:max-h-[250px] overflow-y-auto custom-scrollbar">
+                           
+                           {/* --- NAME TAB --- */}
+                           {activeTab === 'name' && (
+                              <div className="space-y-3 animate-fade-in">
+                                 <div>
+                                    <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
+                                    <input type="range" min="12" max="72" value={nameSize} onChange={e=>setNameSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Font Family</label>
+                                       <select value={nameFont} onChange={e=>setNameFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                          {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                       </select>
+                                    </div>
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Format</label>
+                                       <div className="flex gap-1">
+                                          <button onClick={() => setNameWeight(nameWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${nameWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
+                                          <button onClick={() => setNameStyle(nameStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${nameStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
+                                       </div>
+                                    </div>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
+                                       <input type="color" value={nameColor} onChange={e=>setNameColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                                    </div>
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Border (Outline)</label>
+                                       <select value={nameOutline} onChange={e=>setNameOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                          {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                       </select>
+                                    </div>
+                                 </div>
+                              </div>
+                           )}
+
+                           {/* --- SUB-TEXT TAB --- */}
+                           {activeTab === 'sub' && (
+                              <div className="space-y-3 animate-fade-in">
+                                 <div>
+                                    <label className="text-[9px] text-gray-400 block mb-1">Sub-Text</label>
+                                    <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none focus:border-fuchsia-500"/>
+                                 </div>
+                                 <div>
+                                    <label className="text-[9px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
+                                    <input type="range" min="10" max="48" value={subSize} onChange={e=>setSubSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Font</label>
+                                       <select value={subFont} onChange={e=>setSubFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                          {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                       </select>
+                                    </div>
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Format</label>
+                                       <div className="flex gap-1">
+                                          <button onClick={() => setSubWeight(subWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${subWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
+                                          <button onClick={() => setSubStyle(subStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${subStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
+                                       </div>
+                                    </div>
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
+                                       <input type="color" value={subColor} onChange={e=>setSubColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                                    </div>
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Outline</label>
+                                       <select value={subOutline} onChange={e=>setSubOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                          {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                       </select>
+                                    </div>
+                                 </div>
+                              </div>
+                           )}
+
+                           {/* --- BOX TAB --- */}
+                           {activeTab === 'box' && (
+                              <div className="space-y-3 animate-fade-in">
+                                 <div className="grid grid-cols-2 gap-2">
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Background</label>
+                                       <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                          <option value="rgba(0, 0, 0, 0.5)">Dark Glass</option>
+                                          <option value="rgba(255, 255, 255, 0.5)">Light Glass</option>
+                                          <option value="transparent">Transparent</option>
+                                          <option value="#000000">Solid Black</option>
+                                       </select>
+                                    </div>
+                                    <div>
+                                       <label className="text-[9px] text-gray-400 block mb-1">Border</label>
+                                       <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                          <option value="none">No Border</option>
+                                          <option value="2px solid white">Solid White</option>
+                                          <option value="2px dashed #d946ef">Dashed Pink</option>
+                                          <option value="2px solid #fbbf24">Solid Gold</option>
+                                       </select>
+                                    </div>
+                                 </div>
+                                 <div>
+                                    <label className="text-[9px] text-gray-400 flex justify-between">Radius <span>{boxRadius}px</span></label>
+                                    <input type="range" min="0" max="50" value={boxRadius} onChange={e=>setBoxRadius(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                 </div>
+                                 <div>
+                                    <label className="text-[9px] text-gray-400 flex justify-between">Padding <span>{boxPadding}px</span></label>
+                                    <input type="range" min="0" max="40" value={boxPadding} onChange={e=>setBoxPadding(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                 </div>
+                              </div>
+                           )}
+                        </div>
+                     </>
+                  )}
+               </div>
             )}
-            <label className="text-[10px] md:text-xs text-gray-400 mb-1 block">WhatsApp Message Text</label>
-            <textarea value={message} onChange={(e) => setMessage(e.target.value)} className="w-full h-20 md:h-24 bg-[#0f172a] border border-gray-600 rounded-xl p-2 md:p-3 text-white text-[10px] md:text-sm outline-none focus:border-fuchsia-500 resize-none custom-scrollbar" placeholder="Message..."></textarea>
           </div>
         </div>
 
         {/* COLUMN 2: THE CANVAS (Middle) */}
         <div className="flex-1 bg-[#0f172a] rounded-2xl border border-gray-700 shadow-lg flex flex-col relative overflow-hidden min-h-[350px] lg:min-h-0">
-           <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-black/70 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs text-white border border-white/10 flex items-center gap-2 shadow-lg"><span className="animate-pulse w-2 h-2 bg-red-500 rounded-full"></span> Live Preview</div>
+           <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-black/80 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs text-white border border-gray-700 flex items-center gap-2 shadow-lg">
+             <span className="animate-pulse w-2 h-2 bg-fuchsia-500 rounded-full"></span> Live Preview
+           </div>
            
-           {/* Added touch-action:none for mobile drag */}
-           <div className="flex-1 flex items-center justify-center p-2 md:p-4 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-10 overflow-hidden" style={{touchAction: 'none'}} onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
+           <div className="flex-1 flex items-center justify-center p-2 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5 overflow-hidden" style={{touchAction: 'none'}} onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
              {media ? (
-               <div ref={imageContainerRef} className="relative max-w-full max-h-full shadow-2xl border-2 border-dashed border-gray-600 rounded-lg select-none flex items-center justify-center">
-                 {mediaPreview ? ( <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[50vh] lg:max-h-[65vh] object-contain pointer-events-none" /> ) : ( <div className="w-48 h-48 md:w-64 md:h-64 bg-gray-800 flex items-center justify-center text-gray-300 flex-col px-4 md:px-6 text-center rounded-xl"><span className="text-4xl md:text-6xl mb-3 md:mb-4">{media.type.startsWith('video') ? '🎥' : media.type.startsWith('audio') ? '🎵' : media.type.includes('pdf') ? '📕' : media.name.endsWith('.apk') ? '🤖' : '📁'}</span><span className="font-bold text-[10px] md:text-sm truncate w-full">{media.name}</span><span className="text-[8px] md:text-[10px] text-fuchsia-400 mt-3 md:mt-4">File ready to send</span></div> )}
+               <div ref={imageContainerRef} className={`relative max-w-full max-h-full shadow-2xl rounded-lg select-none flex items-center justify-center ${!mediaPreview ? 'border-2 border-dashed border-gray-600 p-8' : 'border-4 border-gray-800'}`}>
+                 {mediaPreview ? ( 
+                    <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[50vh] lg:max-h-[65vh] object-contain pointer-events-none" /> 
+                 ) : ( 
+                    <div className="w-48 h-48 md:w-64 md:h-64 bg-gray-800 flex items-center justify-center text-gray-300 flex-col px-4 md:px-6 text-center rounded-xl">
+                       <span className="text-4xl md:text-6xl mb-3 md:mb-4">{media.type.startsWith('video') ? '🎥' : media.type.startsWith('audio') ? '🎵' : media.type.includes('pdf') ? '📕' : media.name.endsWith('.apk') ? '🤖' : '📁'}</span>
+                       <span className="font-bold text-[10px] md:text-sm truncate w-full">{media.name}</span>
+                       <span className="text-[8px] md:text-[10px] text-fuchsia-400 mt-3 md:mt-4">File ready to send (Universal)</span>
+                    </div> 
+                 )}
+                 
+                 {/* ADVANCED DRAGGABLE STICKER */}
                  {showSticker && mediaPreview && (
-                   <div onMouseDown={handleDragStart} onTouchStart={handleDragStart} style={{ top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', color: stickerColor, background: stickerBgColor, border: stickerBorder, fontFamily: fontFamily, backdropFilter: stickerBgColor.includes('rgba') ? 'blur(4px)' : 'none', textShadow: stickerColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none' }} className="absolute flex flex-col items-center justify-center hover:shadow-2xl transition-shadow z-20 rounded-lg group p-1 md:p-2">
-                     <div className="font-bold text-lg md:text-2xl tracking-wide text-center pt-1 md:pt-2 pb-1 px-1 md:px-2 w-full truncate">{stickerText}</div>
-                     {subText && ( <div className="text-[10px] md:text-sm font-medium text-center pb-1 md:pb-2 pt-0.5 md:pt-1 px-1 md:px-2 w-full break-words">{subText}</div> )}
-                     <div className="absolute inset-0 border-2 border-transparent group-hover:border-dashed group-hover:border-fuchsia-500 rounded-lg pointer-events-none transition-all"></div>
-                     <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-6 h-6 md:w-5 md:h-5 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30"><span className="text-[10px] md:text-[8px] text-fuchsia-600">⤡</span></div>
+                   <div 
+                     onMouseDown={handleDragStart} onTouchStart={handleDragStart} 
+                     style={{ 
+                        top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', 
+                        background: boxBg, border: boxBorder, borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
+                        backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
+                     }} 
+                     className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
+                   >
+                     <div 
+                        style={{ 
+                           color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
+                           WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
+                           textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
+                           lineHeight: '1.2'
+                        }}
+                        className="text-center w-full break-words"
+                     >
+                        {nameText}
+                     </div>
+                     {subText && ( 
+                        <div 
+                           style={{ 
+                              color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
+                              WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
+                              marginTop: '4px', lineHeight: '1.2'
+                           }}
+                           className="text-center w-full break-words opacity-90"
+                        >
+                           {subText}
+                        </div> 
+                     )}
+                     <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-8 h-8 md:w-6 md:h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30"><span className="text-[12px] md:text-[10px] text-fuchsia-600">⤡</span></div>
                    </div>
                  )}
                </div>
-             ) : ( <div className="text-gray-500 text-center"><p className="text-4xl md:text-5xl mb-3 md:mb-4 opacity-50">📤</p><p className="text-xs md:text-base">Upload any file to preview</p></div> )}
+             ) : ( <div className="text-gray-500 text-center flex flex-col items-center"><p className="text-4xl md:text-5xl mb-3 md:mb-4 opacity-50">📤</p><p className="font-bold text-xs md:text-base">Canvas is Empty</p><p className="text-[9px] md:text-xs mt-1 md:mt-2">Upload any file or image</p></div> )}
            </div>
         </div>
 
