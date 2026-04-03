@@ -53,7 +53,9 @@ const BulkSender = () => {
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState({ sent: 0, failed: 0, total: 0 });
-  const [delay, setDelay] = useState(2);
+  
+  // 🟢 YAHAN DEFAULT TIME 10 KAR DIYA GAYA HAI
+  const [delay, setDelay] = useState(10);
 
   const pauseRef = useRef(false);
   const stopRef = useRef(false);
