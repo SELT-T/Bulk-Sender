@@ -54,7 +54,7 @@ const BulkSender = () => {
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState({ sent: 0, failed: 0, total: 0 });
   
-  // 🟢 YAHAN DEFAULT TIME 10 KAR DIYA GAYA HAI (ab iska use nahi hoga, sirf UI ke liye)
+  // 🟢 DEFAULT TIME 10 
   const [delay, setDelay] = useState(10);
 
   const pauseRef = useRef(false);
@@ -333,7 +333,7 @@ const BulkSender = () => {
     });
   };
 
-  // 🟢 Helper: wait with respect to pause & stop (used for random delay and batch pause)
+  // 🟢 Helper: wait with respect to pause & stop
   const waitWithCheck = async (ms) => {
     const start = Date.now();
     while (Date.now() - start < ms) {
@@ -356,8 +356,10 @@ const BulkSender = () => {
     setProgress(0);
     let currentSent = 0;
     let currentFailed = 0;
-    let messagesProcessed = 0;                     // 🟢 batch pause counter
-    let currentBatchSize = Math.floor(Math.random() * (30 - 20 + 1) + 20); // 🟢 random 20-30
+    
+    // 🟢 UPDATED BATCH LOGIC
+    let messagesProcessed = 0;                      
+    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); // 🟢 Exact target for next pause
     const BATCH_PAUSE_MS = 30000;                  // 🟢 30 seconds batch sleep
 
     let rawBase64MediaData = null;
@@ -465,21 +467,21 @@ const BulkSender = () => {
 
       messagesProcessed++; // 🟢 count this message
 
-      // 🟢 Batch Pause: after every currentBatchSize messages (20-30)
-      if (messagesProcessed % currentBatchSize === 0 && messagesProcessed > 0 && messagesProcessed < contacts.length) {
+      // 🟢 UPDATED Batch Pause: Jab target hit ho jaye
+      if (messagesProcessed >= nextPauseTarget && i < contacts.length - 1) {
         try {
           await waitWithCheck(BATCH_PAUSE_MS);
-          // generate new random batch size for next block
-          currentBatchSize = Math.floor(Math.random() * (30 - 20 + 1) + 20);
+          // Agla pause target set karo (current + agle 20 se 30 messages ke beech)
+          nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
         } catch (err) {
           // stopped during batch pause
           break;
         }
       }
 
-      // 🟢 Randomized delay between messages (8 to 18 seconds)
+      // 🟢 UPDATED Randomized delay: Combining UI input and random offset (UI Delay + 1 to 5 seconds)
       if (i < contacts.length - 1 && !stopRef.current) {
-        const randomDelaySec = Math.floor(Math.random() * (18 - 8 + 1) + 8);
+        const randomDelaySec = Number(delay) + Math.floor(Math.random() * 5) + 1;
         try {
           await waitWithCheck(randomDelaySec * 1000);
         } catch (err) {
