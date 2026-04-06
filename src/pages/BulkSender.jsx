@@ -141,6 +141,7 @@ const BulkSender = () => {
     }
   };
 
+  // 🟢 NEW: Clear Media Feature
   const clearMedia = () => {
     setMedia(null);
     setMediaPreview(null);
@@ -197,6 +198,7 @@ const BulkSender = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
+  // 🟢 NEW: Clear Contacts Feature
   const clearContacts = () => {
     setContacts([]);
     setFile(null);
@@ -223,6 +225,8 @@ const BulkSender = () => {
 
   const handleMouseMove = (e) => {
     if ((!isDragging && !isResizing) || !imageContainerRef.current) return;
+    
+    // Prevent default touch behavior so screen doesn't scroll while dragging on mobile
     if(e.touches && e.cancelable) e.preventDefault(); 
 
     const rect = imageContainerRef.current.getBoundingClientRect();
@@ -263,6 +267,7 @@ const BulkSender = () => {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
+            // Dynamic Sizing based on PersonalizedSender math
             const dynamicNameSize = Math.max(nameSize * scale * (stickerWidth/320), 16);
             const dynamicSubSize = Math.max(subSize * scale * (stickerWidth/320), 10);
             const dynamicPadding = boxPadding * scale;
@@ -276,6 +281,7 @@ const BulkSender = () => {
             const boxW = Math.max(tWidth1, tWidth2) + (dynamicPadding * 4);
             const boxH = subTextStr ? (dynamicNameSize + dynamicSubSize + (dynamicPadding * 3)) : (dynamicNameSize + (dynamicPadding * 2));
 
+            // Draw Background Box
             if (boxBg && boxBg !== 'transparent') {
                 ctx.fillStyle = boxBg;
                 ctx.beginPath();
@@ -283,6 +289,7 @@ const BulkSender = () => {
                 ctx.fill();
             }
 
+            // Draw Border
             if (boxBorder && boxBorder !== 'none') {
                 if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
                 else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
@@ -296,6 +303,7 @@ const BulkSender = () => {
                 ctx.setLineDash([]);
             }
 
+            // Draw Sub Text
             if (subTextStr) {
                 ctx.fillStyle = subColor;
                 ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
@@ -307,6 +315,7 @@ const BulkSender = () => {
                 ctx.fillText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
             }
 
+            // Draw Main Name Text
             ctx.fillStyle = nameColor;
             ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
             
@@ -324,6 +333,7 @@ const BulkSender = () => {
     });
   };
 
+  // 🟢 Helper: wait with respect to pause & stop
   const waitWithCheck = async (ms) => {
     const start = Date.now();
     while (Date.now() - start < ms) {
@@ -347,9 +357,10 @@ const BulkSender = () => {
     let currentSent = 0;
     let currentFailed = 0;
     
+    // 🟢 UPDATED BATCH LOGIC
     let messagesProcessed = 0;                      
-    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
-    const BATCH_PAUSE_MS = 30000;                  
+    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); // Exact target for next pause
+    const BATCH_PAUSE_MS = 30000;                  // 30 seconds batch sleep
 
     let rawBase64MediaData = null;
     let mimeType = null;
@@ -381,21 +392,15 @@ const BulkSender = () => {
       if (stopRef.current) break;
 
       const contact = contacts[i];
-      // 🟢 FIX 2: NUMBER CLEANER (Special chars aur spaces hata dega taaki 'Not on WA' error na aaye)
-      const purePhone = String(contact.phone).replace(/\D/g, '');
-
+      // 🟢 FIX REVERTED: Using normal contact.phone back to original working state
       const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
 
-      const newLog = { id: i + 1, to: purePhone, status: "Sending...", name: contact.name };
+      const newLog = { id: i + 1, to: contact.phone, status: "Sending...", name: contact.name };
       setLogs(prev => [newLog, ...prev]);
 
       let isMessageSuccessful = false; 
 
       try {
-        // 🟢 FIX 1: ABORT CONTROLLER (Server hang hone par 12 seconds me auto-cancel kar dega)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 12000); 
-
         let res;
         let finalMediaToSend = rawBase64MediaData;
         
@@ -408,19 +413,18 @@ const BulkSender = () => {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
-               target: purePhone, // Updated to use clean number
+               target: contact.phone, // Reverted back to working state
                text: personalizedMsg,
                isGroup: false,
                mediaBase64: finalMediaToSend, 
                mediaType: mimeType,            
                fileName: originalFileName      
-             }),
-             signal: controller.signal // Attaching timeout
+             })
            });
         } else {
            const payload = {
              email: user?.email || 'demo@reachify.com', 
-             phone: purePhone, // Updated to use clean number
+             phone: contact.phone, // Reverted back to working state
              message: personalizedMsg, 
              media_type: media?.type || 'text',
              sticker_config: (showSticker && media?.type.startsWith('image')) ? { 
@@ -432,12 +436,10 @@ const BulkSender = () => {
            };
            res = await fetch(`${API_URL}/send-message`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify(payload),
-             signal: controller.signal // Attaching timeout
+             body: JSON.stringify(payload)
            });
         }
 
-        clearTimeout(timeoutId); // Request aagayi toh timeout hata do
         const data = await res.json(); 
 
         if (res.ok && data.success !== false) {
@@ -446,7 +448,7 @@ const BulkSender = () => {
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
           currentFailed++;
-          const errorMsg = data.error ? data.error.substring(0, 35) : "Failed/Not on WA";
+          const errorMsg = data.error ? data.error.substring(0, 35) : "Failed to Send";
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
           
           if (data.error && data.error.includes("disconnected")) {
@@ -457,19 +459,17 @@ const BulkSender = () => {
         }
       } catch (err) {
         currentFailed++;
-        if (err.name === 'AbortError') {
-             setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Server Timeout" } : l));
-        } else {
-             setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
-        }
+        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
       }
       
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
       setProgress(Math.round(((i + 1) / contacts.length) * 100));
 
+      // 🟢 SMART SKIP LOGIC (Delay ONLY applied when message is successfully sent)
       if (i < contacts.length - 1 && !stopRef.current) {
         if (isMessageSuccessful) {
            messagesProcessed++; 
+           
            if (messagesProcessed >= nextPauseTarget) {
              try {
                setLogs(prev => [{ id: 'pause', to: 'System', status: '⏸ Batch Pause (30s)...', name: 'Wait' }, ...prev]);
