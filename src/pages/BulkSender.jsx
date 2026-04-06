@@ -359,8 +359,8 @@ const BulkSender = () => {
     
     // 🟢 UPDATED BATCH LOGIC
     let messagesProcessed = 0;                      
-    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); // 🟢 Exact target for next pause
-    const BATCH_PAUSE_MS = 30000;                  // 🟢 30 seconds batch sleep
+    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); // Exact target for next pause
+    const BATCH_PAUSE_MS = 30000;                  // 30 seconds batch sleep
 
     let rawBase64MediaData = null;
     let mimeType = null;
@@ -474,14 +474,14 @@ const BulkSender = () => {
           // Agla pause target set karo (current + agle 20 se 30 messages ke beech)
           nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
         } catch (err) {
-          // stopped during batch pause
           break;
         }
       }
 
-      // 🟢 UPDATED Randomized delay: Combining UI input and random offset (UI Delay + 1 to 5 seconds)
+      // 🟢 NEW PACING: Max 3-4 messages per minute (20 to 30 seconds delay per message)
+      // Agar tum dashboard par delay = 10 rakhte ho, toh ye line banegi: 10 + 10 + (0 se 10 random seconds) = 20 se 30 seconds gap!
       if (i < contacts.length - 1 && !stopRef.current) {
-        const randomDelaySec = Number(delay) + Math.floor(Math.random() * 5) + 1;
+        const randomDelaySec = Number(delay) + 10 + Math.floor(Math.random() * 11);
         try {
           await waitWithCheck(randomDelaySec * 1000);
         } catch (err) {
