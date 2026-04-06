@@ -141,7 +141,6 @@ const BulkSender = () => {
     }
   };
 
-  // 🟢 NEW: Clear Media Feature
   const clearMedia = () => {
     setMedia(null);
     setMediaPreview(null);
@@ -198,7 +197,6 @@ const BulkSender = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
-  // 🟢 NEW: Clear Contacts Feature
   const clearContacts = () => {
     setContacts([]);
     setFile(null);
@@ -225,8 +223,6 @@ const BulkSender = () => {
 
   const handleMouseMove = (e) => {
     if ((!isDragging && !isResizing) || !imageContainerRef.current) return;
-    
-    // Prevent default touch behavior so screen doesn't scroll while dragging on mobile
     if(e.touches && e.cancelable) e.preventDefault(); 
 
     const rect = imageContainerRef.current.getBoundingClientRect();
@@ -267,7 +263,6 @@ const BulkSender = () => {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            // Dynamic Sizing based on PersonalizedSender math
             const dynamicNameSize = Math.max(nameSize * scale * (stickerWidth/320), 16);
             const dynamicSubSize = Math.max(subSize * scale * (stickerWidth/320), 10);
             const dynamicPadding = boxPadding * scale;
@@ -281,7 +276,6 @@ const BulkSender = () => {
             const boxW = Math.max(tWidth1, tWidth2) + (dynamicPadding * 4);
             const boxH = subTextStr ? (dynamicNameSize + dynamicSubSize + (dynamicPadding * 3)) : (dynamicNameSize + (dynamicPadding * 2));
 
-            // Draw Background Box
             if (boxBg && boxBg !== 'transparent') {
                 ctx.fillStyle = boxBg;
                 ctx.beginPath();
@@ -289,7 +283,6 @@ const BulkSender = () => {
                 ctx.fill();
             }
 
-            // Draw Border
             if (boxBorder && boxBorder !== 'none') {
                 if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
                 else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
@@ -303,7 +296,6 @@ const BulkSender = () => {
                 ctx.setLineDash([]);
             }
 
-            // Draw Sub Text
             if (subTextStr) {
                 ctx.fillStyle = subColor;
                 ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
@@ -315,7 +307,6 @@ const BulkSender = () => {
                 ctx.fillText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
             }
 
-            // Draw Main Name Text
             ctx.fillStyle = nameColor;
             ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
             
@@ -333,7 +324,6 @@ const BulkSender = () => {
     });
   };
 
-  // 🟢 Helper: wait with respect to pause & stop
   const waitWithCheck = async (ms) => {
     const start = Date.now();
     while (Date.now() - start < ms) {
@@ -357,10 +347,9 @@ const BulkSender = () => {
     let currentSent = 0;
     let currentFailed = 0;
     
-    // 🟢 UPDATED BATCH LOGIC
     let messagesProcessed = 0;                      
-    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); // Exact target for next pause
-    const BATCH_PAUSE_MS = 30000;                  // 30 seconds batch sleep
+    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
+    const BATCH_PAUSE_MS = 30000;                  
 
     let rawBase64MediaData = null;
     let mimeType = null;
@@ -397,12 +386,13 @@ const BulkSender = () => {
       const newLog = { id: i + 1, to: contact.phone, status: "Sending...", name: contact.name };
       setLogs(prev => [newLog, ...prev]);
 
+      // 🟢 Is variable se track karenge ki message actually gaya ya fail hua
+      let isMessageSuccessful = false; 
+
       try {
         let res;
-        
         let finalMediaToSend = rawBase64MediaData;
         
-        // 🟢 FIX: Only apply personalized base64 generation if it's an image AND showSticker is true
         if (connectionMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
         }
@@ -421,7 +411,6 @@ const BulkSender = () => {
              })
            });
         } else {
-           // Pro API Payload with Advanced Sticker Config merged from Personalized Sender
            const payload = {
              email: user?.email || 'demo@reachify.com', 
              phone: contact.phone, 
@@ -444,6 +433,7 @@ const BulkSender = () => {
 
         if (res.ok && data.success !== false) {
           currentSent++;
+          isMessageSuccessful = true; // 🟢 Message successfully gaya!
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
           currentFailed++;
@@ -459,35 +449,43 @@ const BulkSender = () => {
       } catch (err) {
         currentFailed++;
         setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
-        await waitWithCheck(5000);
+        // 🟢 Purane code mein yahan 5 second ka block laga tha jo maine hata diya hai.
       }
       
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
       setProgress(Math.round(((i + 1) / contacts.length) * 100));
 
-      messagesProcessed++; // 🟢 count this message
-
-      // 🟢 UPDATED Batch Pause: Jab target hit ho jaye
-      if (messagesProcessed >= nextPauseTarget && i < contacts.length - 1) {
-        try {
-          await waitWithCheck(BATCH_PAUSE_MS);
-          // Agla pause target set karo (current + agle 20 se 30 messages ke beech)
-          nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
-        } catch (err) {
-          break;
-        }
-      }
-
-      // 🟢 NEW PACING: Max 3-4 messages per minute (20 to 30 seconds delay per message)
-      // Agar tum dashboard par delay = 10 rakhte ho, toh ye line banegi: 10 + 10 + (0 se 10 random seconds) = 20 se 30 seconds gap!
+      // 🟢 SMART SKIP LOGIC START 🟢
       if (i < contacts.length - 1 && !stopRef.current) {
-        const randomDelaySec = Number(delay) + 10 + Math.floor(Math.random() * 11);
-        try {
-          await waitWithCheck(randomDelaySec * 1000);
-        } catch (err) {
-          break;
+        if (isMessageSuccessful) {
+           messagesProcessed++; 
+           
+           // 1. Batch Pause Check (Only pause if we are actively sending valid messages)
+           if (messagesProcessed >= nextPauseTarget) {
+             try {
+               setLogs(prev => [{ id: 'pause', to: 'System', status: '⏸ Batch Pause (30s)...', name: 'Wait' }, ...prev]);
+               await waitWithCheck(BATCH_PAUSE_MS);
+               nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
+               setLogs(prev => prev.filter(l => l.id !== 'pause')); // Remove pause message
+             } catch (err) { break; }
+           }
+
+           // 2. Normal Random Delay (20 to 30 seconds for Valid Numbers)
+           const randomDelaySec = Number(delay) + 10 + Math.floor(Math.random() * 11);
+           try {
+             await waitWithCheck(randomDelaySec * 1000);
+           } catch (err) { break; }
+
+        } else {
+           // 🚀 FAST SKIP FOR INVALID NUMBERS 🚀
+           // Agar message fail hua (jaise number WhatsApp par nahi hai), toh bina time waste kiye 
+           // sirf 1 se 1.5 second ka delay lenge aur agle number par chale jayenge.
+           try {
+             await waitWithCheck(1500); 
+           } catch (err) { break; }
         }
       }
+      // 🟢 SMART SKIP LOGIC END 🟢
     }
     
     if (!stopRef.current) setCampaignState('completed');
