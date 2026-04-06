@@ -381,15 +381,21 @@ const BulkSender = () => {
       if (stopRef.current) break;
 
       const contact = contacts[i];
+      // 🟢 FIX 2: NUMBER CLEANER (Special chars aur spaces hata dega taaki 'Not on WA' error na aaye)
+      const purePhone = String(contact.phone).replace(/\D/g, '');
+
       const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
 
-      const newLog = { id: i + 1, to: contact.phone, status: "Sending...", name: contact.name };
+      const newLog = { id: i + 1, to: purePhone, status: "Sending...", name: contact.name };
       setLogs(prev => [newLog, ...prev]);
 
-      // 🟢 Is variable se track karenge ki message actually gaya ya fail hua
       let isMessageSuccessful = false; 
 
       try {
+        // 🟢 FIX 1: ABORT CONTROLLER (Server hang hone par 12 seconds me auto-cancel kar dega)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000); 
+
         let res;
         let finalMediaToSend = rawBase64MediaData;
         
@@ -402,18 +408,19 @@ const BulkSender = () => {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
-               target: contact.phone,
+               target: purePhone, // Updated to use clean number
                text: personalizedMsg,
                isGroup: false,
                mediaBase64: finalMediaToSend, 
                mediaType: mimeType,            
                fileName: originalFileName      
-             })
+             }),
+             signal: controller.signal // Attaching timeout
            });
         } else {
            const payload = {
              email: user?.email || 'demo@reachify.com', 
-             phone: contact.phone, 
+             phone: purePhone, // Updated to use clean number
              message: personalizedMsg, 
              media_type: media?.type || 'text',
              sticker_config: (showSticker && media?.type.startsWith('image')) ? { 
@@ -425,67 +432,65 @@ const BulkSender = () => {
            };
            res = await fetch(`${API_URL}/send-message`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify(payload)
+             body: JSON.stringify(payload),
+             signal: controller.signal // Attaching timeout
            });
         }
 
+        clearTimeout(timeoutId); // Request aagayi toh timeout hata do
         const data = await res.json(); 
 
         if (res.ok && data.success !== false) {
           currentSent++;
-          isMessageSuccessful = true; // 🟢 Message successfully gaya!
+          isMessageSuccessful = true; 
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
           currentFailed++;
-          const errorMsg = data.error ? data.error.substring(0, 35) : "Failed to Send";
+          const errorMsg = data.error ? data.error.substring(0, 35) : "Failed/Not on WA";
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
           
           if (data.error && data.error.includes("disconnected")) {
-              alert("❌ Render Server restarted! Your session is wiped. Please go to Settings > Refresh QR Code.");
+              alert("❌ Server disconnected! Please go to Settings > Refresh QR Code.");
               setCampaignState('stopped');
               break;
           }
         }
       } catch (err) {
         currentFailed++;
-        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
-        // 🟢 Purane code mein yahan 5 second ka block laga tha jo maine hata diya hai.
+        if (err.name === 'AbortError') {
+             setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Server Timeout" } : l));
+        } else {
+             setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
+        }
       }
       
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
       setProgress(Math.round(((i + 1) / contacts.length) * 100));
 
-      // 🟢 SMART SKIP LOGIC START 🟢
       if (i < contacts.length - 1 && !stopRef.current) {
         if (isMessageSuccessful) {
            messagesProcessed++; 
-           
-           // 1. Batch Pause Check (Only pause if we are actively sending valid messages)
            if (messagesProcessed >= nextPauseTarget) {
              try {
                setLogs(prev => [{ id: 'pause', to: 'System', status: '⏸ Batch Pause (30s)...', name: 'Wait' }, ...prev]);
                await waitWithCheck(BATCH_PAUSE_MS);
                nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
-               setLogs(prev => prev.filter(l => l.id !== 'pause')); // Remove pause message
+               setLogs(prev => prev.filter(l => l.id !== 'pause')); 
              } catch (err) { break; }
            }
 
-           // 2. Normal Random Delay (20 to 30 seconds for Valid Numbers)
            const randomDelaySec = Number(delay) + 10 + Math.floor(Math.random() * 11);
            try {
              await waitWithCheck(randomDelaySec * 1000);
            } catch (err) { break; }
 
         } else {
-           // 🚀 FAST SKIP FOR INVALID NUMBERS 🚀
-           // Agar message fail hua (jaise number WhatsApp par nahi hai), toh bina time waste kiye 
-           // sirf 1 se 1.5 second ka delay lenge aur agle number par chale jayenge.
+           // FAST SKIP: Agar fail hua toh turant agle number pe jayega, wait nahi karega
            try {
              await waitWithCheck(1500); 
            } catch (err) { break; }
         }
       }
-      // 🟢 SMART SKIP LOGIC END 🟢
     }
     
     if (!stopRef.current) setCampaignState('completed');
@@ -821,7 +826,7 @@ const BulkSender = () => {
           <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 custom-scrollbar scroll-smooth">
             {logs.length === 0 ? ( <div className="h-full flex flex-col items-center justify-center opacity-50 text-gray-500"><span className="text-3xl md:text-4xl mb-2">⏳</span><p className="text-[10px] md:text-sm">Activity will appear here</p></div> ) : logs.map(log => (
                <div key={log.id} className="flex flex-col bg-[#0f172a] p-2 md:p-3 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors animate-fade-in">
-                  <div className="flex justify-between items-center mb-1"><span className="text-[10px] md:text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span><span className={`text-[8px] md:text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') || log.status.includes('❌') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{log.status}</span></div>
+                  <div className="flex justify-between items-center mb-1"><span className="text-[10px] md:text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span><span className={`text-[8px] md:text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') || log.status.includes('❌') || log.status.includes('Timeout') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{log.status}</span></div>
                   <span className="text-[9px] md:text-xs font-mono text-gray-500">{log.to}</span>
                </div>
             ))}
