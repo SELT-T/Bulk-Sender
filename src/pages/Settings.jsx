@@ -44,9 +44,9 @@ const Settings = () => {
     
     // WhatsApp Connections
     wa_connection_mode: 'api', 
-    wa_provider: 'evolution',
-    wa_instance_id: '',
-    wa_access_token: '',
+    wa_provider: 'meta', // 🟢 Defaulting to Meta Cloud API
+    wa_instance_id: '', // Meta Phone Number ID
+    wa_access_token: '', // Meta Permanent Token
     anti_ban_min_delay: 5,
     anti_ban_max_delay: 15,
     anti_ban_typing_status: true,
@@ -446,17 +446,17 @@ const Settings = () => {
                        <div>
                          <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">Provider</label>
                          <select name="wa_provider" value={settings.wa_provider} onChange={handleChange} className="w-full bg-[#1e293b] border border-gray-600 rounded-xl p-3 md:p-3.5 text-xs md:text-sm text-white outline-none focus:border-emerald-500">
+                           <option value="meta">Meta Cloud API</option>
                            <option value="evolution">Evolution API (Node)</option>
                            <option value="wapi">WAPI Gateway</option>
-                           <option value="meta">Meta Cloud API</option>
                          </select>
                        </div>
                        <div>
-                         <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">Instance ID</label>
-                         <input type="text" name="wa_instance_id" value={settings.wa_instance_id} onChange={handleChange} placeholder="reachify-inst-01" className="w-full bg-[#1e293b] border border-gray-600 rounded-xl p-3 md:p-3.5 text-white font-mono text-base md:text-sm outline-none focus:border-emerald-500" />
+                         <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">Instance ID / Phone Number ID</label>
+                         <input type="text" name="wa_instance_id" value={settings.wa_instance_id} onChange={handleChange} placeholder="e.g. 10478200..." className="w-full bg-[#1e293b] border border-gray-600 rounded-xl p-3 md:p-3.5 text-white font-mono text-base md:text-sm outline-none focus:border-emerald-500" />
                        </div>
                        <div className="md:col-span-2">
-                         <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">Secure Token</label>
+                         <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">Secure Token / Access Token</label>
                          <div className="relative">
                            <input type={showPassword['wa_token'] ? 'text' : 'password'} name="wa_access_token" value={settings.wa_access_token} onChange={handleChange} placeholder="Paste API key..." className="w-full bg-[#1e293b] border border-gray-600 rounded-xl p-3 md:p-3.5 text-white font-mono text-base md:text-sm outline-none focus:border-emerald-500 pr-12" />
                            <button onClick={() => toggleVisibility('wa_token')} className="absolute right-3 md:right-4 top-3 md:top-3.5 text-gray-400 hover:text-white">
@@ -584,7 +584,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* 8. EXTRACTORS */}
+            {/* 8. EXTRACTORS (🟢 FIX: Divs closed properly) */}
             {activeTab === 'extractors' && (
               <div className="space-y-6 animate-fade-in max-w-2xl">
                 <div>
