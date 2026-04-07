@@ -105,11 +105,13 @@ const BulkSender = () => {
            if (data.status === 'connected') setWaStatus('connected');
            else setWaStatus('disconnected');
         } else {
+           // 🟢 Agar BYOK model hai to API server check karega
            const res = await fetch(`${API_URL}/get-settings`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
            });
            const data = await res.json();
-           if (data.instance_id && data.access_token) setWaStatus('connected');
+           // Yahan hum local storage ka data bhi use kar sakte hain
+           if (savedSettings.wa_access_token) setWaStatus('connected');
            else setWaStatus('disconnected');
         }
       } catch (err) {
@@ -141,7 +143,6 @@ const BulkSender = () => {
     }
   };
 
-  // 🟢 NEW: Clear Media Feature
   const clearMedia = () => {
     setMedia(null);
     setMediaPreview(null);
@@ -198,7 +199,6 @@ const BulkSender = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
-  // 🟢 NEW: Clear Contacts Feature
   const clearContacts = () => {
     setContacts([]);
     setFile(null);
@@ -225,8 +225,6 @@ const BulkSender = () => {
 
   const handleMouseMove = (e) => {
     if ((!isDragging && !isResizing) || !imageContainerRef.current) return;
-    
-    // Prevent default touch behavior so screen doesn't scroll while dragging on mobile
     if(e.touches && e.cancelable) e.preventDefault(); 
 
     const rect = imageContainerRef.current.getBoundingClientRect();
@@ -267,7 +265,6 @@ const BulkSender = () => {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            // Dynamic Sizing based on PersonalizedSender math
             const dynamicNameSize = Math.max(nameSize * scale * (stickerWidth/320), 16);
             const dynamicSubSize = Math.max(subSize * scale * (stickerWidth/320), 10);
             const dynamicPadding = boxPadding * scale;
@@ -281,7 +278,6 @@ const BulkSender = () => {
             const boxW = Math.max(tWidth1, tWidth2) + (dynamicPadding * 4);
             const boxH = subTextStr ? (dynamicNameSize + dynamicSubSize + (dynamicPadding * 3)) : (dynamicNameSize + (dynamicPadding * 2));
 
-            // Draw Background Box
             if (boxBg && boxBg !== 'transparent') {
                 ctx.fillStyle = boxBg;
                 ctx.beginPath();
@@ -289,7 +285,6 @@ const BulkSender = () => {
                 ctx.fill();
             }
 
-            // Draw Border
             if (boxBorder && boxBorder !== 'none') {
                 if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
                 else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
@@ -303,7 +298,6 @@ const BulkSender = () => {
                 ctx.setLineDash([]);
             }
 
-            // Draw Sub Text
             if (subTextStr) {
                 ctx.fillStyle = subColor;
                 ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
@@ -315,7 +309,6 @@ const BulkSender = () => {
                 ctx.fillText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
             }
 
-            // Draw Main Name Text
             ctx.fillStyle = nameColor;
             ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
             
@@ -333,7 +326,6 @@ const BulkSender = () => {
     });
   };
 
-  // 🟢 Helper: wait with respect to pause & stop
   const waitWithCheck = async (ms) => {
     const start = Date.now();
     while (Date.now() - start < ms) {
@@ -349,6 +341,12 @@ const BulkSender = () => {
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
     
+    // 🟢 FETCH CURRENT SETTINGS FOR BYOK (Bring Your Own Key)
+    const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+    const waProvider = savedSettings.wa_provider || 'meta';
+    const waInstanceId = savedSettings.wa_instance_id || '';
+    const waToken = savedSettings.wa_access_token || '';
+
     setCampaignState('running');
     pauseRef.current = false;
     stopRef.current = false;
@@ -357,10 +355,9 @@ const BulkSender = () => {
     let currentSent = 0;
     let currentFailed = 0;
     
-    // 🟢 UPDATED BATCH LOGIC
     let messagesProcessed = 0;                      
-    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); // Exact target for next pause
-    const BATCH_PAUSE_MS = 30000;                  // 30 seconds batch sleep
+    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
+    const BATCH_PAUSE_MS = 30000;                  
 
     let rawBase64MediaData = null;
     let mimeType = null;
@@ -392,7 +389,6 @@ const BulkSender = () => {
       if (stopRef.current) break;
 
       const contact = contacts[i];
-      // 🟢 FIX REVERTED: Using normal contact.phone back to original working state
       const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
 
       const newLog = { id: i + 1, to: contact.phone, status: "Sending...", name: contact.name };
@@ -409,11 +405,12 @@ const BulkSender = () => {
         }
 
         if (connectionMode === 'web') {
+           // UNOFFICIAL QR MODE
            res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
              body: JSON.stringify({
-               target: contact.phone, // Reverted back to working state
+               target: contact.phone,
                text: personalizedMsg,
                isGroup: false,
                mediaBase64: finalMediaToSend, 
@@ -422,11 +419,18 @@ const BulkSender = () => {
              })
            });
         } else {
+           // 🟢 OFFICIAL API MODE (BYOK) - Sends client's keys to backend
            const payload = {
              email: user?.email || 'demo@reachify.com', 
-             phone: contact.phone, // Reverted back to working state
+             phone: contact.phone, 
              message: personalizedMsg, 
              media_type: media?.type || 'text',
+             media_base64: finalMediaToSend,
+             fileName: originalFileName,
+             // 🟢 Client Credentials injected here
+             provider: waProvider,         
+             instance_id: waInstanceId,    
+             access_token: waToken,        
              sticker_config: (showSticker && media?.type.startsWith('image')) ? { 
                  name: { text: contact.name, font: nameFont, size: nameSize, color: nameColor, outline: nameOutline, weight: nameWeight, style: nameStyle },
                  sub: { text: subText, font: subFont, size: subSize, color: subColor, outline: subOutline, weight: subWeight, style: subStyle },
@@ -452,7 +456,7 @@ const BulkSender = () => {
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
           
           if (data.error && data.error.includes("disconnected")) {
-              alert("❌ Server disconnected! Please go to Settings > Refresh QR Code.");
+              alert("❌ Server disconnected! Please go to Settings > Refresh QR Code or Check API Keys.");
               setCampaignState('stopped');
               break;
           }
@@ -465,30 +469,30 @@ const BulkSender = () => {
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
       setProgress(Math.round(((i + 1) / contacts.length) * 100));
 
-      // 🟢 SMART SKIP LOGIC (Delay ONLY applied when message is successfully sent)
       if (i < contacts.length - 1 && !stopRef.current) {
         if (isMessageSuccessful) {
            messagesProcessed++; 
            
-           if (messagesProcessed >= nextPauseTarget) {
-             try {
-               setLogs(prev => [{ id: 'pause', to: 'System', status: '⏸ Batch Pause (30s)...', name: 'Wait' }, ...prev]);
-               await waitWithCheck(BATCH_PAUSE_MS);
-               nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
-               setLogs(prev => prev.filter(l => l.id !== 'pause')); 
-             } catch (err) { break; }
+           if (connectionMode === 'web') {
+              // Only apply strict anti-ban pauses if using Unofficial Web Mode
+              if (messagesProcessed >= nextPauseTarget) {
+                try {
+                  setLogs(prev => [{ id: 'pause', to: 'System', status: '⏸ Batch Pause (30s)...', name: 'Wait' }, ...prev]);
+                  await waitWithCheck(BATCH_PAUSE_MS);
+                  nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
+                  setLogs(prev => prev.filter(l => l.id !== 'pause')); 
+                } catch (err) { break; }
+              }
            }
 
-           const randomDelaySec = Number(delay) + 10 + Math.floor(Math.random() * 11);
+           // Normal delay between messages (Client controls this via dashboard)
+           const randomDelaySec = Number(delay) + Math.floor(Math.random() * 3);
            try {
              await waitWithCheck(randomDelaySec * 1000);
            } catch (err) { break; }
 
         } else {
-           // FAST SKIP: Agar fail hua toh turant agle number pe jayega, wait nahi karega
-           try {
-             await waitWithCheck(1500); 
-           } catch (err) { break; }
+           try { await waitWithCheck(1500); } catch (err) { break; }
         }
       }
     }
