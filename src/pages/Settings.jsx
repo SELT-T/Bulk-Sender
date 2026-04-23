@@ -138,16 +138,6 @@ const Settings = () => {
     if (webStatus === 'scanning' || webStatus === 'authenticating' || webStatus === 'generating') {
       interval = setInterval(() => fetchStatus(), 3000);
     }
-    
-    // 🟢 Fix: API mode ke liye check
-    if (waConnectionType === 'api') {
-      const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
-      if (savedSettings.wa_access_token && savedSettings.wa_instance_id) {
-         setWaStatus('connected');
-      } else {
-         setWaStatus('disconnected');
-      }
-    }
 
     return () => clearInterval(interval);
   }, [webStatus, waConnectionType]);
@@ -186,10 +176,6 @@ const Settings = () => {
              setIsSaving(false); 
              alert("✅ Settings Saved Successfully to Database!"); 
          }, 800);
-         // Update API status immediately after save if mode is API
-         if (finalSettings.wa_connection_mode === 'api' && finalSettings.wa_access_token && finalSettings.wa_instance_id) {
-             setWaStatus('connected');
-         }
       } else {
          throw new Error("Backend save failed");
       }
@@ -602,7 +588,7 @@ const Settings = () => {
               </div>
             )}
 
-            {/* 8. EXTRACTORS (🟢 FIX: Divs closed properly) */}
+            {/* 8. EXTRACTORS */}
             {activeTab === 'extractors' && (
               <div className="space-y-6 animate-fade-in max-w-2xl">
                 <div>
