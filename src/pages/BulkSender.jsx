@@ -452,7 +452,15 @@ const BulkSender = () => {
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
           currentFailed++;
-          const errorMsg = data.error ? data.error.substring(0, 35) : "Failed to Send";
+          
+          // 🟢 FIX: Smart Error Handling for Meta Template Restrictions
+          let errorMsg = data.error || "Failed to Send";
+          if (errorMsg.includes("Template") || errorMsg.includes("template")) {
+              errorMsg = "Template Required";
+          } else {
+              errorMsg = errorMsg.substring(0, 35);
+          }
+          
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
           
           if (data.error && data.error.includes("disconnected")) {
