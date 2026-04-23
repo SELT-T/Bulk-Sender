@@ -138,6 +138,17 @@ const Settings = () => {
     if (webStatus === 'scanning' || webStatus === 'authenticating' || webStatus === 'generating') {
       interval = setInterval(() => fetchStatus(), 3000);
     }
+    
+    // 🟢 Fix: API mode ke liye check
+    if (waConnectionType === 'api') {
+      const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+      if (savedSettings.wa_access_token && savedSettings.wa_instance_id) {
+         setWaStatus('connected');
+      } else {
+         setWaStatus('disconnected');
+      }
+    }
+
     return () => clearInterval(interval);
   }, [webStatus, waConnectionType]);
 
@@ -171,7 +182,14 @@ const Settings = () => {
       });
       
       if(res.ok) {
-         setTimeout(() => { setIsSaving(false); alert("✅ Settings Saved Successfully to Database!"); }, 800);
+         setTimeout(() => { 
+             setIsSaving(false); 
+             alert("✅ Settings Saved Successfully to Database!"); 
+         }, 800);
+         // Update API status immediately after save if mode is API
+         if (finalSettings.wa_connection_mode === 'api' && finalSettings.wa_access_token && finalSettings.wa_instance_id) {
+             setWaStatus('connected');
+         }
       } else {
          throw new Error("Backend save failed");
       }
@@ -546,11 +564,11 @@ const Settings = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                            <div>
                               <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 flex justify-between">Min Delay <span>{settings.anti_ban_min_delay} sec</span></label>
-                              <input type="range" name="anti_ban_min_delay" min="1" max="10" value={settings.anti_ban_min_delay} onChange={handleChange} className="w-full accent-emerald-500" />
+                              <input type="range" name="anti_ban_min_delay" min="0" max="10" value={settings.anti_ban_min_delay} onChange={handleChange} className="w-full accent-emerald-500" />
                            </div>
                            <div>
                               <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 flex justify-between">Max Delay <span>{settings.anti_ban_max_delay} sec</span></label>
-                              <input type="range" name="anti_ban_max_delay" min="10" max="60" value={settings.anti_ban_max_delay} onChange={handleChange} className="w-full accent-emerald-500" />
+                              <input type="range" name="anti_ban_max_delay" min="0" max="60" value={settings.anti_ban_max_delay} onChange={handleChange} className="w-full accent-emerald-500" />
                            </div>
                         </div>
                         <div className="mt-4 pt-4 border-t border-gray-700">
@@ -616,7 +634,7 @@ const Settings = () => {
                   <div>
                     <label className="text-[10px] md:text-xs text-gray-400 font-bold mb-1 block">AI Provider Engine</label>
                     <select disabled className="w-full bg-[#0f172a] border border-gray-600 rounded-xl p-3 md:p-3.5 text-xs md:text-sm text-fuchsia-400 font-bold outline-none cursor-not-allowed">
-                      <option>Google Gemini 1.5 Flash (Free)</option>
+                      <option>Google Gemini 2.5 Flash (Ultra Fast)</option>
                     </select>
                   </div>
                   <div>
