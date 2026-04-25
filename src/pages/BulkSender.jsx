@@ -235,7 +235,7 @@ const BulkSender = () => {
     }
   };
 
-  // 🔥 VIP CANVAS RENDERER ENGINE (FIXED STYLING & SIZING)
+  // 🔥 PERFECT PIXEL CANVAS ENGINE (FIXED SIZING & CENTERING) 🔥
   const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -247,6 +247,7 @@ const BulkSender = () => {
             const ctx = canvas.getContext('2d');
 
             ctx.drawImage(img, 0, 0, img.width, img.height);
+            
             const containerWidth = imageContainerRef.current ? imageContainerRef.current.offsetWidth : 400;
             const scale = img.width / containerWidth;
 
@@ -256,24 +257,22 @@ const BulkSender = () => {
             const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
             const subTextStr = subText || '';
 
-            const dynamicNameSize = Math.max(nameSize * scale * (stickerWidth/320), 16);
-            const dynamicSubSize = Math.max(subSize * scale * (stickerWidth/320), 10);
+            // Accurate Scaling (No more shrinking)
+            const dynamicNameSize = nameSize * scale;
+            const dynamicSubSize = subSize * scale;
             const dynamicPadding = boxPadding * scale;
             const dynamicRadius = boxRadius * scale;
 
-            ctx.font = `${nameWeight} ${dynamicNameSize}px ${nameFont}`;
-            const tWidth1 = ctx.measureText(textStr).width;
-            ctx.font = `${subWeight} ${dynamicSubSize}px ${subFont}`;
-            const tWidth2 = subTextStr ? ctx.measureText(subTextStr).width : 0;
-
-            // Perfect exact math for Box matching DOM
-            const boxW = Math.max(tWidth1, tWidth2) + (dynamicPadding * 2);
+            // Height Calculations
             const lineH1 = dynamicNameSize * 1.2;
             const lineH2 = subTextStr ? dynamicSubSize * 1.2 : 0;
             const gap = subTextStr ? 4 * scale : 0;
+
+            // Width is forced to exact scaled width of the UI box
+            const boxW = stickerWidth * scale; 
             const boxH = lineH1 + lineH2 + gap + (dynamicPadding * 2);
 
-            // 1. Draw VIP Background
+            // 1. Draw Box Background
             if (boxBg && boxBg !== 'transparent') {
                 if (boxBg === 'gold_gradient') {
                     const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
@@ -291,7 +290,7 @@ const BulkSender = () => {
                 ctx.fill();
             }
 
-            // 2. Draw VIP Border
+            // 2. Draw Box Border
             if (boxBorder && boxBorder !== 'none') {
                  if (boxBorder === 'gold_gradient') {
                     const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
@@ -314,10 +313,12 @@ const BulkSender = () => {
                  ctx.setLineDash([]);
             }
 
-            // 3. Draw Text Perfectly Centered
+            // 3. Perfect Centered Text Alignment
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            const nameY = subTextStr ? y - (boxH/2) + dynamicPadding + (lineH1/2) : y;
+            
+            const contentTop = y - (lineH1 + gap + lineH2) / 2;
+            const nameY = contentTop + (lineH1 / 2);
 
             ctx.fillStyle = nameColor;
             ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
@@ -329,7 +330,7 @@ const BulkSender = () => {
             ctx.fillText(textStr, x, nameY);
 
             if (subTextStr) {
-                const subY = nameY + (lineH1/2) + gap + (lineH2/2);
+                const subY = contentTop + lineH1 + gap + (lineH2 / 2);
                 ctx.fillStyle = subColor;
                 ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
                 if (subOutline !== 'none') {
