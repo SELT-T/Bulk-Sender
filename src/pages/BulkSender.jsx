@@ -54,7 +54,6 @@ const BulkSender = () => {
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState({ sent: 0, failed: 0, total: 0 });
   
-  // 🟢 DEFAULT TIME 10 
   const [delay, setDelay] = useState(10);
 
   const pauseRef = useRef(false);
@@ -90,6 +89,19 @@ const BulkSender = () => {
     { label: "Fuchsia", value: "#d946ef" }
   ];
 
+  // Helper for VIP Gradients in UI
+  const getBgStyle = (bg) => {
+    if (bg === 'gold_gradient') return 'linear-gradient(135deg, #bf953f, #fcf6ba, #b38728)';
+    if (bg === 'silver_gradient') return 'linear-gradient(135deg, #8e9eab, #eef2f3, #8e9eab)';
+    return bg;
+  };
+
+  const getBorderStyle = (border) => {
+    if (border === 'gold_gradient') return '3px solid #fcf6ba';
+    if (border === 'silver_gradient') return '3px solid #eef2f3';
+    return border;
+  };
+
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
@@ -105,27 +117,19 @@ const BulkSender = () => {
            if (data.status === 'connected') setWaStatus('connected');
            else setWaStatus('disconnected');
         } else {
-           // 🟢 Agar BYOK model hai to API server check karega
            const res = await fetch(`${API_URL}/get-settings`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
            });
-           const data = await res.json();
-           // Yahan hum local storage ka data bhi use kar sakte hain
            if (savedSettings.wa_access_token) setWaStatus('connected');
            else setWaStatus('disconnected');
         }
-      } catch (err) {
-        setWaStatus('sleeping'); 
-      }
+      } catch (err) { setWaStatus('sleeping'); }
     };
-    
     checkRealConnection();
-
     interval = setInterval(() => {
         const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
         if (savedSettings.wa_connection_mode === 'web') fetch(`${WA_ENGINE_URL}/`).catch(() => {}); 
     }, 45000); 
-
     return () => clearInterval(interval);
   }, [user.email]);
 
@@ -135,19 +139,15 @@ const BulkSender = () => {
       setMedia(uploadedFile);
       if (uploadedFile.type.startsWith('image/')) {
         setMediaPreview(URL.createObjectURL(uploadedFile));
-        setShowSticker(true); // Auto-enable sticker for images
+        setShowSticker(true);
       } else {
         setMediaPreview(null);
-        setShowSticker(false); // Disable for PDF/Video
+        setShowSticker(false);
       }
     }
   };
 
-  const clearMedia = () => {
-    setMedia(null);
-    setMediaPreview(null);
-    setShowSticker(false);
-  };
+  const clearMedia = () => { setMedia(null); setMediaPreview(null); setShowSticker(false); };
 
   const handleFileUpload = (e) => {
     const uploadedFile = e.target.files[0];
@@ -161,12 +161,10 @@ const BulkSender = () => {
         const wb = XLSX.read(bstr, { type: 'binary' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const data = XLSX.utils.sheet_to_json(ws, { defval: "" }); 
-        
         if (data.length === 0) return alert("❌ Your Excel file is empty!");
 
         const formattedContacts = data.map((row) => {
-          let phoneVal = '';
-          let nameVal = 'Guest';
+          let phoneVal = ''; let nameVal = 'Guest';
           const keys = Object.keys(row);
           keys.forEach(key => {
             const lowerKey = key.toLowerCase();
@@ -199,12 +197,7 @@ const BulkSender = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
-  const clearContacts = () => {
-    setContacts([]);
-    setFile(null);
-    setShowContactPreview(false);
-    setStats({ sent: 0, failed: 0, total: 0 });
-  };
+  const clearContacts = () => { setContacts([]); setFile(null); setShowContactPreview(false); setStats({ sent: 0, failed: 0, total: 0 }); };
 
   const applyCountryCode = () => {
     if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
@@ -242,6 +235,7 @@ const BulkSender = () => {
     }
   };
 
+  // 🔥 VIP CANVAS RENDERER ENGINE (FIXED STYLING & SIZING)
   const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -262,9 +256,6 @@ const BulkSender = () => {
             const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
             const subTextStr = subText || '';
 
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-
             const dynamicNameSize = Math.max(nameSize * scale * (stickerWidth/320), 16);
             const dynamicSubSize = Math.max(subSize * scale * (stickerWidth/320), 10);
             const dynamicPadding = boxPadding * scale;
@@ -275,51 +266,81 @@ const BulkSender = () => {
             ctx.font = `${subWeight} ${dynamicSubSize}px ${subFont}`;
             const tWidth2 = subTextStr ? ctx.measureText(subTextStr).width : 0;
 
-            const boxW = Math.max(tWidth1, tWidth2) + (dynamicPadding * 4);
-            const boxH = subTextStr ? (dynamicNameSize + dynamicSubSize + (dynamicPadding * 3)) : (dynamicNameSize + (dynamicPadding * 2));
+            // Perfect exact math for Box matching DOM
+            const boxW = Math.max(tWidth1, tWidth2) + (dynamicPadding * 2);
+            const lineH1 = dynamicNameSize * 1.2;
+            const lineH2 = subTextStr ? dynamicSubSize * 1.2 : 0;
+            const gap = subTextStr ? 4 * scale : 0;
+            const boxH = lineH1 + lineH2 + gap + (dynamicPadding * 2);
 
+            // 1. Draw VIP Background
             if (boxBg && boxBg !== 'transparent') {
-                ctx.fillStyle = boxBg;
+                if (boxBg === 'gold_gradient') {
+                    const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
+                    grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
+                    ctx.fillStyle = grad;
+                } else if (boxBg === 'silver_gradient') {
+                    const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
+                    grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
+                    ctx.fillStyle = grad;
+                } else {
+                    ctx.fillStyle = boxBg;
+                }
                 ctx.beginPath();
                 ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
                 ctx.fill();
             }
 
+            // 2. Draw VIP Border
             if (boxBorder && boxBorder !== 'none') {
-                if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
-                else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
-                else if (boxBorder.includes('black')) ctx.strokeStyle = 'black';
-                else ctx.strokeStyle = 'white';
-                ctx.lineWidth = 3 * scale;
-                if (boxBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
-                ctx.beginPath();
-                ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                 if (boxBorder === 'gold_gradient') {
+                    const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
+                    grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
+                    ctx.strokeStyle = grad;
+                 } else if (boxBorder === 'silver_gradient') {
+                    const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
+                    grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
+                    ctx.strokeStyle = grad;
+                 } else if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
+                 else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
+                 else if (boxBorder.includes('black')) ctx.strokeStyle = 'black';
+                 else ctx.strokeStyle = 'white';
+
+                 ctx.lineWidth = 3 * scale;
+                 if (boxBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
+                 ctx.beginPath();
+                 ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                 ctx.stroke();
+                 ctx.setLineDash([]);
             }
 
+            // 3. Draw Text Perfectly Centered
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const nameY = subTextStr ? y - (boxH/2) + dynamicPadding + (lineH1/2) : y;
+
+            ctx.fillStyle = nameColor;
+            ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
+            if (nameOutline !== 'none') {
+                ctx.strokeStyle = nameOutline;
+                ctx.lineWidth = 3 * scale;
+                ctx.strokeText(textStr, x, nameY);
+            }
+            ctx.fillText(textStr, x, nameY);
+
             if (subTextStr) {
+                const subY = nameY + (lineH1/2) + gap + (lineH2/2);
                 ctx.fillStyle = subColor;
                 ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
                 if (subOutline !== 'none') {
                    ctx.strokeStyle = subOutline;
                    ctx.lineWidth = 2 * scale;
-                   ctx.strokeText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
+                   ctx.strokeText(subTextStr, x, subY);
                 }
-                ctx.fillText(subTextStr, x, y + dynamicNameSize/2 + dynamicPadding/2);
+                ctx.fillText(subTextStr, x, subY);
             }
 
-            ctx.fillStyle = nameColor;
-            ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
-            
-            if (nameOutline !== 'none') {
-                ctx.strokeStyle = nameOutline;
-                ctx.lineWidth = 3 * scale;
-                ctx.strokeText(textStr, x, subTextStr ? y - dynamicSubSize/2 : y);
-            }
-            ctx.fillText(textStr, x, subTextStr ? y - dynamicSubSize/2 : y);
-
-            resolve(canvas.toDataURL('image/jpeg', 0.8));
+            resolve(canvas.toDataURL('image/jpeg', 0.9));
         };
         img.onerror = () => resolve(rawBase64); 
         img.src = rawBase64;
@@ -341,27 +362,18 @@ const BulkSender = () => {
   const startCampaign = async () => {
     if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
     
-    // 🟢 FETCH CURRENT SETTINGS FOR BYOK (Bring Your Own Key)
     const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
     const waProvider = savedSettings.wa_provider || 'meta';
     const waInstanceId = savedSettings.wa_instance_id || '';
     const waToken = savedSettings.wa_access_token || '';
 
-    setCampaignState('running');
-    pauseRef.current = false;
-    stopRef.current = false;
-    setLogs([]);
-    setProgress(0);
-    let currentSent = 0;
-    let currentFailed = 0;
-    
-    let messagesProcessed = 0;                      
+    setCampaignState('running'); pauseRef.current = false; stopRef.current = false;
+    setLogs([]); setProgress(0);
+    let currentSent = 0; let currentFailed = 0; let messagesProcessed = 0;                      
     let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
     const BATCH_PAUSE_MS = 30000;                  
 
-    let rawBase64MediaData = null;
-    let mimeType = null;
-    let originalFileName = null;
+    let rawBase64MediaData = null; let mimeType = null; let originalFileName = null;
 
     if (media) {
        try {
@@ -374,106 +386,61 @@ const BulkSender = () => {
           mimeType = media.type;
           originalFileName = media.name;
        } catch (e) {
-          alert("❌ Error processing the media file.");
-          setCampaignState('stopped');
-          return;
+          alert("❌ Error processing the media file."); setCampaignState('stopped'); return;
        }
     }
 
     for (let i = 0; i < contacts.length; i++) {
       if (stopRef.current) { setCampaignState('stopped'); break; }
-      while (pauseRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-        if (stopRef.current) break; 
-      }
+      while (pauseRef.current) { await new Promise(resolve => setTimeout(resolve, 500)); if (stopRef.current) break; }
       if (stopRef.current) break;
 
       const contact = contacts[i];
       const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
-
-      const newLog = { id: i + 1, to: contact.phone, status: "Sending...", name: contact.name };
-      setLogs(prev => [newLog, ...prev]);
-
+      setLogs(prev => [{ id: i + 1, to: contact.phone, status: "Sending...", name: contact.name }, ...prev]);
       let isMessageSuccessful = false; 
 
       try {
-        let res;
-        let finalMediaToSend = rawBase64MediaData;
+        let res; let finalMediaToSend = rawBase64MediaData;
         
-        // 🔥 FIX APPLIED HERE: Ab Canvas dono mode (Web aur API) mein generate hoga!
         if (showSticker && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
         }
 
         if (connectionMode === 'web') {
-           // UNOFFICIAL QR MODE
            res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({
-               target: contact.phone,
-               text: personalizedMsg,
-               isGroup: false,
-               mediaBase64: finalMediaToSend, 
-               mediaType: mimeType,            
-               fileName: originalFileName      
-             })
+             method: 'POST', headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ target: contact.phone, text: personalizedMsg, isGroup: false, mediaBase64: finalMediaToSend, mediaType: mimeType, fileName: originalFileName })
            });
         } else {
-           // 🟢 OFFICIAL API MODE (BYOK) - Sends client's keys to backend
            const payload = {
-             email: user?.email || 'demo@reachify.com', 
-             phone: contact.phone, 
-             message: personalizedMsg, 
-             media_type: media?.type || 'text',
-             media_base64: finalMediaToSend,
-             fileName: originalFileName,
-             // 🟢 Client Credentials injected here
-             provider: waProvider,         
-             instance_id: waInstanceId,    
-             access_token: waToken,        
-             sticker_config: (showSticker && media?.type.startsWith('image')) ? { 
-                 name: { text: contact.name, font: nameFont, size: nameSize, color: nameColor, outline: nameOutline, weight: nameWeight, style: nameStyle },
-                 sub: { text: subText, font: subFont, size: subSize, color: subColor, outline: subOutline, weight: subWeight, style: subStyle },
-                 box: { bg: boxBg, border: boxBorder, radius: boxRadius, padding: boxPadding, width: stickerWidth },
-                 x: stickerPos.x, y: stickerPos.y 
-             } : null
+             email: user?.email || 'demo@reachify.com', phone: contact.phone, message: personalizedMsg, media_type: media?.type || 'text',
+             media_base64: finalMediaToSend, fileName: originalFileName, provider: waProvider, instance_id: waInstanceId, access_token: waToken
            };
            res = await fetch(`${API_URL}/send-message`, {
-             method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify(payload)
+             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
            });
         }
 
         const data = await res.json(); 
 
         if (res.ok && data.success !== false) {
-          currentSent++;
-          isMessageSuccessful = true; 
+          currentSent++; isMessageSuccessful = true; 
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
         } else {
           currentFailed++;
-          
-          // 🟢 FIX: Smart Error Handling for Meta Template Restrictions
           let errorMsg = data.error || "Failed to Send";
-          if (errorMsg.includes("Template") || errorMsg.includes("template")) {
-              errorMsg = "Template Required";
-          } else {
-              errorMsg = errorMsg.substring(0, 35);
-          }
+          if (errorMsg.includes("Template") || errorMsg.includes("template")) errorMsg = "Template Required";
+          else errorMsg = errorMsg.substring(0, 35);
           
           setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
           
           if (data.error && data.error.includes("disconnected")) {
               alert("❌ Server disconnected! Please go to Settings > Refresh QR Code or Check API Keys.");
-              setCampaignState('stopped');
-              break;
+              setCampaignState('stopped'); break;
           }
         }
-      } catch (err) {
-        currentFailed++;
-        setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l));
-      }
+      } catch (err) { currentFailed++; setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l)); }
       
       setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
       setProgress(Math.round(((i + 1) / contacts.length) * 100));
@@ -481,31 +448,21 @@ const BulkSender = () => {
       if (i < contacts.length - 1 && !stopRef.current) {
         if (isMessageSuccessful) {
            messagesProcessed++; 
-           
-           if (connectionMode === 'web') {
-              // Only apply strict anti-ban pauses if using Unofficial Web Mode
-              if (messagesProcessed >= nextPauseTarget) {
+           if (connectionMode === 'web' && messagesProcessed >= nextPauseTarget) {
                 try {
                   setLogs(prev => [{ id: 'pause', to: 'System', status: '⏸ Batch Pause (30s)...', name: 'Wait' }, ...prev]);
                   await waitWithCheck(BATCH_PAUSE_MS);
                   nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
                   setLogs(prev => prev.filter(l => l.id !== 'pause')); 
                 } catch (err) { break; }
-              }
            }
-
-           // Normal delay between messages (Client controls this via dashboard)
            const randomDelaySec = Number(delay) + Math.floor(Math.random() * 3);
-           try {
-             await waitWithCheck(randomDelaySec * 1000);
-           } catch (err) { break; }
-
+           try { await waitWithCheck(randomDelaySec * 1000); } catch (err) { break; }
         } else {
            try { await waitWithCheck(1500); } catch (err) { break; }
         }
       }
     }
-    
     if (!stopRef.current) setCampaignState('completed');
   };
 
@@ -513,10 +470,8 @@ const BulkSender = () => {
   const stopCampaign = () => { stopRef.current = true; setCampaignState('stopped'); };
 
   return (
-    // 🔥 MOBILE WRAPPER FIX: min-h-screen for mobile, fixed height for PC
     <div className="flex flex-col min-h-screen lg:h-[calc(100vh-100px)] gap-4 md:gap-6 max-w-[1400px] mx-auto p-2 pb-20 lg:pb-2" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
       
-      {/* HEADER SECTION (Responsive wrap) */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
@@ -543,7 +498,6 @@ const BulkSender = () => {
               <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 md:w-10 bg-transparent text-white font-bold text-center outline-none text-xs md:text-sm" />
               <span className="text-gray-400 text-[10px] md:text-xs">sec</span>
            </div>
-
            {campaignState === 'idle' || campaignState === 'completed' || campaignState === 'stopped' ? (
              <button onClick={startCampaign} disabled={contacts.length === 0} className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white shadow-lg transition-all ${contacts.length === 0 ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:scale-105'}`}>
                {campaignState === 'completed' ? '🔄 Resend Campaign' : '▶ Start Campaign'}
@@ -569,13 +523,9 @@ const BulkSender = () => {
         </div>
       )}
 
-      {/* 🔥 MOBILE LAYOUT FIX: Changed from grid to flex-col on mobile, flex-row on PC */}
       <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto lg:overflow-hidden custom-scrollbar">
         
-        {/* COLUMN 1: SETUP (Excel, File, Stylings) */}
         <div className="w-full lg:w-[340px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0 lg:pb-10">
-          
-          {/* STEP 1 & 2 GRIDS */}
           <div className="grid grid-cols-2 gap-2 md:gap-3 flex-shrink-0">
              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
                <div className="flex justify-between items-center mb-2">
@@ -601,7 +551,6 @@ const BulkSender = () => {
              </div>
           </div>
 
-          {/* EXCEL PREVIEW */}
           {contacts.length > 0 && (
             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 animate-fade-in-up">
               <div className="flex justify-between items-center mb-3">
@@ -628,12 +577,10 @@ const BulkSender = () => {
             </div>
           )}
 
-          {/* STEP 3: ADVANCED STYLING (MERGED FROM PERSONALIZED) */}
           <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col">
             <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2">3. WhatsApp Message</h3>
             <textarea value={message} onChange={(e) => setMessage(e.target.value)} className="w-full h-16 md:h-20 bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar mb-3" placeholder="Message text... use {{Name}}"></textarea>
 
-            {/* SHOW ADVANCED STUDIO ONLY IF IMAGE IS UPLOADED */}
             {mediaPreview && (
                <div className="border border-fuchsia-500/40 rounded-lg overflow-hidden flex flex-col">
                   <div className="flex items-center justify-between bg-fuchsia-500/10 p-2 md:p-3 border-b border-fuchsia-500/40">
@@ -643,17 +590,13 @@ const BulkSender = () => {
                   
                   {showSticker && (
                      <>
-                        {/* TABS */}
                         <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
                            <button onClick={()=>setActiveTab('name')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name</button>
                            <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
                            <button onClick={()=>setActiveTab('box')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box</button>
                         </div>
 
-                        {/* TAB CONTENTS */}
                         <div className="p-3 bg-[#0f172a] space-y-3 lg:max-h-[250px] overflow-y-auto custom-scrollbar">
-                           
-                           {/* --- NAME TAB --- */}
                            {activeTab === 'name' && (
                               <div className="space-y-3 animate-fade-in">
                                  <div>
@@ -690,7 +633,6 @@ const BulkSender = () => {
                               </div>
                            )}
 
-                           {/* --- SUB-TEXT TAB --- */}
                            {activeTab === 'sub' && (
                               <div className="space-y-3 animate-fade-in">
                                  <div>
@@ -731,13 +673,14 @@ const BulkSender = () => {
                               </div>
                            )}
 
-                           {/* --- BOX TAB --- */}
                            {activeTab === 'box' && (
                               <div className="space-y-3 animate-fade-in">
                                  <div className="grid grid-cols-2 gap-2">
                                     <div>
                                        <label className="text-[9px] text-gray-400 block mb-1">Background</label>
                                        <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                          <option value="gold_gradient">VIP Golden (New) ✨</option>
+                                          <option value="silver_gradient">VIP Silver (New) ✨</option>
                                           <option value="rgba(0, 0, 0, 0.5)">Dark Glass</option>
                                           <option value="rgba(255, 255, 255, 0.5)">Light Glass</option>
                                           <option value="transparent">Transparent</option>
@@ -748,6 +691,8 @@ const BulkSender = () => {
                                        <label className="text-[9px] text-gray-400 block mb-1">Border</label>
                                        <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
                                           <option value="none">No Border</option>
+                                          <option value="gold_gradient">VIP Golden Border ✨</option>
+                                          <option value="silver_gradient">VIP Silver Border ✨</option>
                                           <option value="2px solid white">Solid White</option>
                                           <option value="2px dashed #d946ef">Dashed Pink</option>
                                           <option value="2px solid #fbbf24">Solid Gold</option>
@@ -772,7 +717,6 @@ const BulkSender = () => {
           </div>
         </div>
 
-        {/* COLUMN 2: THE CANVAS (Middle) */}
         <div className="flex-1 bg-[#0f172a] rounded-2xl border border-gray-700 shadow-lg flex flex-col relative overflow-hidden min-h-[350px] lg:min-h-0">
            <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-black/80 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs text-white border border-gray-700 flex items-center gap-2 shadow-lg">
              <span className="animate-pulse w-2 h-2 bg-fuchsia-500 rounded-full"></span> Live Preview
@@ -791,13 +735,12 @@ const BulkSender = () => {
                     </div> 
                  )}
                  
-                 {/* ADVANCED DRAGGABLE STICKER */}
                  {showSticker && mediaPreview && (
                    <div 
                      onMouseDown={handleDragStart} onTouchStart={handleDragStart} 
                      style={{ 
                         top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', 
-                        background: boxBg, border: boxBorder, borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
+                        background: getBgStyle(boxBg), border: getBorderStyle(boxBorder), borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
                         backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
                      }} 
                      className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
@@ -833,7 +776,6 @@ const BulkSender = () => {
            </div>
         </div>
 
-        {/* COLUMN 3: LOGS (Right side on PC, Bottom on mobile) */}
         <div className="w-full lg:w-[280px] bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden h-[300px] lg:h-auto flex-shrink-0">
           <div className="p-3 md:p-4 border-b border-gray-700 bg-[#0f172a] font-bold text-white flex justify-between items-center"><span className="text-xs md:text-base">📡 Action Logs</span><span className="text-[9px] md:text-[10px] bg-gray-800 px-2 py-1 rounded">Total: {stats.total}</span></div>
           <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 custom-scrollbar scroll-smooth">
