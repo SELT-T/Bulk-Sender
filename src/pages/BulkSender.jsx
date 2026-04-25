@@ -400,7 +400,8 @@ const BulkSender = () => {
         let res;
         let finalMediaToSend = rawBase64MediaData;
         
-        if (connectionMode === 'web' && showSticker && mimeType && mimeType.startsWith('image/')) {
+        // 🔥 FIX APPLIED HERE: Ab Canvas dono mode (Web aur API) mein generate hoga!
+        if (showSticker && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
         }
 
