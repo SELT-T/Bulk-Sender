@@ -2,10 +2,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const BulkSender = () => {
+  // --- UI Tabs State ---
   const [mainTab, setMainTab] = useState('send'); 
   const [historyLogs, setHistoryLogs] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
+  // --- Core States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
   const [countryCode, setCountryCode] = useState('91'); 
@@ -17,9 +19,11 @@ const BulkSender = () => {
   const [waStatus, setWaStatus] = useState('checking'); 
   const [connectionMode, setConnectionMode] = useState('api');
   
+  // --- Advanced Studio States ---
   const [showSticker, setShowSticker] = useState(false);
   const [activeTab, setActiveTab] = useState('name');
 
+  // 1. Name Tag Config
   const [nameText, setNameText] = useState("{{Name}}");
   const [nameFont, setNameFont] = useState("Arial, sans-serif");
   const [nameSize, setNameSize] = useState(32);
@@ -28,6 +32,7 @@ const BulkSender = () => {
   const [nameWeight, setNameWeight] = useState("bold");
   const [nameStyle, setNameStyle] = useState("normal");
 
+  // 2. Sub-Text Config
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
   const [subFont, setSubFont] = useState("Arial, sans-serif");
   const [subSize, setSubSize] = useState(14);
@@ -36,16 +41,19 @@ const BulkSender = () => {
   const [subWeight, setSubWeight] = useState("normal");
   const [subStyle, setSubStyle] = useState("normal");
 
+  // 3. Box Config
   const [boxBg, setBoxBg] = useState("rgba(0, 0, 0, 0.5)");
   const [boxBorder, setBoxBorder] = useState("none");
   const [boxRadius, setBoxRadius] = useState(12);
   const [boxPadding, setBoxPadding] = useState(16);
   
+  // Placement
   const [stickerWidth, setStickerWidth] = useState(250); 
   const [stickerPos, setStickerPos] = useState({ x: 50, y: 70 }); 
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   
+  // --- Campaign States ---
   const [campaignState, setCampaignState] = useState('idle'); 
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
@@ -60,6 +68,7 @@ const BulkSender = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
+  // FONT OPTIONS
   const fontOptions = [
     { label: "Modern (Arial)", value: "Arial, sans-serif" },
     { label: "Classic (Times)", value: "'Times New Roman', serif" },
@@ -96,6 +105,7 @@ const BulkSender = () => {
     return border;
   };
 
+  // --- AUTO RESUME LOGIC ---
   useEffect(() => {
     const savedState = localStorage.getItem('reachify_campaign_backup');
     if (savedState) {
@@ -125,6 +135,7 @@ const BulkSender = () => {
     }
   }, [contacts, logs, stats, progress, campaignState]);
 
+  // --- CONNECTION CHECKER ---
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
@@ -156,6 +167,7 @@ const BulkSender = () => {
     return () => clearInterval(interval);
   }, [user.email]);
 
+  // --- FETCH SENT HISTORY ---
   const fetchSentHistory = async () => {
     setIsLoadingHistory(true);
     try {
@@ -530,7 +542,7 @@ const BulkSender = () => {
             onClick={() => setMainTab('history')} 
             className={`flex-shrink-0 px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${mainTab === 'history' ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] border border-fuchsia-400' : 'bg-[#1e293b] text-gray-400 hover:text-white hover:bg-[#2d3748] border border-gray-700'}`}
         >
-            📜 Sent History (Real Data)
+            📜 Sent History & Tracker
         </button>
       </div>
 
@@ -854,73 +866,107 @@ const BulkSender = () => {
           </div>
       </>
       ) : (
-      // --- REAL SENT HISTORY TAB ---
+      // --- ADVANCED TRACKING HISTORY TAB ---
       <div className="flex-1 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden animate-fade-in">
          <div className="p-4 md:p-6 border-b border-gray-700 bg-[#0f172a] flex justify-between items-center">
             <div>
-               <h2 className="text-lg md:text-xl font-bold text-white">Sent Message History</h2>
-               <p className="text-gray-400 text-xs mt-1">Live data fetched directly from your Cloudflare Database.</p>
+               <h2 className="text-lg md:text-xl font-bold text-white">Live Tracking Dashboard</h2>
+               <p className="text-gray-400 text-xs mt-1">Real-time status updates directly from your database.</p>
             </div>
-            <button onClick={fetchSentHistory} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2">
-               🔄 Refresh
+            <button onClick={fetchSentHistory} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm">
+               🔄 Sync Data
             </button>
          </div>
          <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
             {isLoadingHistory ? (
                <div className="flex flex-col items-center justify-center h-full text-fuchsia-400">
                   <span className="animate-spin text-4xl mb-4">⚙️</span>
-                  <p>Fetching real history from secure database...</p>
+                  <p>Fetching real history from database...</p>
                </div>
             ) : historyLogs.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-70">
                   <span className="text-5xl mb-4">📭</span>
-                  <p>No messages sent yet. Start a campaign to see history!</p>
+                  <p>No messages sent yet. Start a campaign to see live tracking!</p>
                </div>
             ) : (
-               <div className="w-full bg-[#0f172a] rounded-xl border border-gray-700 overflow-hidden">
+               <div className="w-full bg-[#0f172a] rounded-xl border border-gray-700 overflow-hidden shadow-inner">
                   <table className="w-full text-left border-collapse">
                      <thead>
-                        <tr className="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider">
-                           <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Recipient</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 w-2/4">Message Content</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Status</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 text-right w-1/4">Date & Time</th>
+                        <tr className="bg-gray-800/80 text-gray-400 text-[11px] uppercase tracking-wider">
+                           <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Recipient Number</th>
+                           <th className="p-4 font-semibold border-b border-gray-700 w-2/5">Message Content</th>
+                           <th className="p-4 font-semibold border-b border-gray-700 text-center">Live Delivery Status</th>
+                           <th className="p-4 font-semibold border-b border-gray-700 text-right">Sent Time</th>
                         </tr>
                      </thead>
                      <tbody className="text-sm">
                         {historyLogs.map((log, i) => {
-                           // Extracting Phone & Message parts safely from new log format ("To: +9198... | Msg: Hello...")
+                           // Parse real data from DB
                            const parts = log.action.split(' | Msg: ');
-                           const phonePart = parts[0] || log.action;
+                           const phonePart = parts[0] ? parts[0].replace('To: ', '') : log.action;
                            const messagePart = parts[1] || 'No Preview Available (Old Log)';
+                           
+                           // Determine advanced status
+                           let advanceStatus = 'sent'; 
+                           if (log.status === 'Error') advanceStatus = 'failed';
+                           else if (log.status === 'Delivered') advanceStatus = 'delivered'; // Ready for future webhook
+                           else if (log.status === 'Read') advanceStatus = 'read'; // Ready for future webhook
 
                            return (
-                           <tr key={i} className="hover:bg-[#1e293b] transition-colors border-b border-gray-800/50">
+                           <tr key={i} className="hover:bg-[#1e293b]/50 transition-colors border-b border-gray-800/50">
                               <td className="p-4">
-                                 <div className="text-fuchsia-400 font-mono text-[11px] bg-fuchsia-500/10 inline-block px-2 py-1 rounded">
+                                 <div className="text-fuchsia-400 font-mono text-[12px] bg-fuchsia-500/10 inline-block px-2 py-1 rounded border border-fuchsia-500/20">
                                      {phonePart}
                                  </div>
                               </td>
                               <td className="p-4">
-                                 <div className="text-gray-300 font-medium text-[11px] bg-[#1e293b] p-2 rounded border border-gray-700 line-clamp-2">
+                                 <div className="text-gray-300 font-medium text-[11px] bg-black/30 p-2.5 rounded border border-gray-700/50 line-clamp-2" title={messagePart}>
                                      {messagePart}
                                  </div>
                               </td>
                               <td className="p-4">
-                                 <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${log.status === 'Success' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
-                                    {log.status === 'Success' ? '✅ Sent to Meta' : '❌ Failed'}
-                                 </span>
+                                  {advanceStatus === 'failed' ? (
+                                      <div className="flex justify-center">
+                                          <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                                             ❌ Failed to Send
+                                          </span>
+                                      </div>
+                                  ) : (
+                                      <div className="flex items-center justify-center gap-1.5 md:gap-3">
+                                          {/* Sent Step */}
+                                          <div className="flex flex-col items-center justify-center text-green-400">
+                                             <span className="text-[12px] md:text-sm font-bold bg-green-500/10 w-6 h-6 flex items-center justify-center rounded-full border border-green-500/30">✓</span>
+                                             <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">SENT</span>
+                                          </div>
+                                          <div className={`w-4 md:w-8 h-0.5 rounded-full ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'bg-green-500' : 'bg-gray-700'}`}></div>
+                                          
+                                          {/* Delivered Step */}
+                                          <div className={`flex flex-col items-center justify-center transition-all ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'text-green-400' : 'text-gray-600'}`}>
+                                             <span className={`text-[12px] md:text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full border ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'bg-green-500/10 border-green-500/30' : 'bg-gray-800 border-gray-700'}`}>✓✓</span>
+                                             <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">DELIVERED</span>
+                                          </div>
+                                          <div className={`w-4 md:w-8 h-0.5 rounded-full ${advanceStatus === 'read' ? 'bg-blue-500' : 'bg-gray-700'}`}></div>
+                                          
+                                          {/* Read Step */}
+                                          <div className={`flex flex-col items-center justify-center transition-all ${advanceStatus === 'read' ? 'text-blue-400' : 'text-gray-600'}`}>
+                                             <span className={`text-[12px] md:text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full border ${advanceStatus === 'read' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-gray-800 border-gray-700'}`}>✓✓</span>
+                                             <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">READ</span>
+                                          </div>
+                                      </div>
+                                  )}
                               </td>
-                              <td className="p-4 text-right text-gray-500 font-mono text-[10px]">
-                                 {new Date(log.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                              <td className="p-4 text-right">
+                                 <div className="text-gray-400 font-mono text-[11px] bg-gray-800/50 inline-block px-2 py-1 rounded">
+                                     {new Date(log.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                 </div>
                               </td>
                            </tr>
                            );
                         })}
                      </tbody>
                   </table>
-                  <div className="p-4 text-center text-xs text-yellow-400 bg-gray-800/50 border-t border-gray-700">
-                     Latest 50 records shown.
+                  <div className="p-3 text-center text-[10px] md:text-xs text-blue-400 bg-blue-500/10 border-t border-gray-700">
+                     Showing latest 50 records. Note: Full 'Delivered' and 'Read' tracking will automatically activate once the Backend Webhook is installed.
                   </div>
                </div>
             )}
