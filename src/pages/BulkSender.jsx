@@ -2,6 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const BulkSender = () => {
+  // --- UI Tabs State ---
+  const [mainTab, setMainTab] = useState('send'); // 'send' or 'history'
+  const [historyLogs, setHistoryLogs] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
   // --- Core States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
@@ -14,7 +19,7 @@ const BulkSender = () => {
   const [waStatus, setWaStatus] = useState('checking'); 
   const [connectionMode, setConnectionMode] = useState('api');
   
-  // --- Advanced Studio States (Merged from Personalized Sender) ---
+  // --- Advanced Studio States ---
   const [showSticker, setShowSticker] = useState(false);
   const [activeTab, setActiveTab] = useState('name');
 
@@ -53,7 +58,6 @@ const BulkSender = () => {
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
   const [stats, setStats] = useState({ sent: 0, failed: 0, total: 0 });
-  
   const [delay, setDelay] = useState(10);
 
   const pauseRef = useRef(false);
@@ -89,7 +93,6 @@ const BulkSender = () => {
     { label: "Fuchsia", value: "#d946ef" }
   ];
 
-  // Helper for VIP Gradients in UI
   const getBgStyle = (bg) => {
     if (bg === 'gold_gradient') return 'linear-gradient(135deg, #bf953f, #fcf6ba, #b38728)';
     if (bg === 'silver_gradient') return 'linear-gradient(135deg, #8e9eab, #eef2f3, #8e9eab)';
@@ -102,6 +105,37 @@ const BulkSender = () => {
     return border;
   };
 
+  // --- AUTO RESUME LOGIC (localStorage) ---
+  useEffect(() => {
+    const savedState = localStorage.getItem('reachify_campaign_backup');
+    if (savedState) {
+        try {
+            const parsed = JSON.parse(savedState);
+            if (parsed.contacts && parsed.contacts.length > 0) setContacts(parsed.contacts);
+            if (parsed.logs) setLogs(parsed.logs);
+            if (parsed.stats) setStats(parsed.stats);
+            if (parsed.progress) setProgress(parsed.progress);
+            if (parsed.campaignState && parsed.campaignState !== 'idle') {
+                if (parsed.campaignState === 'running') {
+                    setCampaignState('paused'); // Auto-pause so it doesn't fire without user knowing
+                    pauseRef.current = true;
+                } else {
+                    setCampaignState(parsed.campaignState);
+                }
+            }
+        } catch(e){}
+    }
+  }, []);
+
+  useEffect(() => {
+    if (contacts.length > 0 || logs.length > 0) {
+        localStorage.setItem('reachify_campaign_backup', JSON.stringify({
+            contacts, logs, stats, progress, campaignState
+        }));
+    }
+  }, [contacts, logs, stats, progress, campaignState]);
+
+  // --- CONNECTION CHECKER ---
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
@@ -132,6 +166,26 @@ const BulkSender = () => {
     }, 45000); 
     return () => clearInterval(interval);
   }, [user.email]);
+
+  // --- FETCH SENT HISTORY ---
+  const fetchSentHistory = async () => {
+    setIsLoadingHistory(true);
+    try {
+        const res = await fetch(`${API_URL}/dashboard-stats`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: user.email })
+        });
+        const data = await res.json();
+        if (data.recent) setHistoryLogs(data.recent);
+    } catch (e) {
+        console.error("History Error", e);
+    }
+    setIsLoadingHistory(false);
+  };
+
+  useEffect(() => {
+      if (mainTab === 'history') fetchSentHistory();
+  }, [mainTab]);
 
   const handleMediaUpload = (e) => {
     const uploadedFile = e.target.files[0];
@@ -197,7 +251,11 @@ const BulkSender = () => {
     reader.readAsBinaryString(uploadedFile);
   };
 
-  const clearContacts = () => { setContacts([]); setFile(null); setShowContactPreview(false); setStats({ sent: 0, failed: 0, total: 0 }); };
+  const clearContacts = () => { 
+      setContacts([]); setFile(null); setShowContactPreview(false); 
+      setStats({ sent: 0, failed: 0, total: 0 }); setLogs([]); setProgress(0); setCampaignState('idle');
+      localStorage.removeItem('reachify_campaign_backup');
+  };
 
   const applyCountryCode = () => {
     if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
@@ -235,7 +293,6 @@ const BulkSender = () => {
     }
   };
 
-  // 🔥 PERFECT PIXEL CANVAS ENGINE (FIXED SIZING & CENTERING) 🔥
   const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -257,22 +314,18 @@ const BulkSender = () => {
             const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
             const subTextStr = subText || '';
 
-            // Accurate Scaling (No more shrinking)
             const dynamicNameSize = nameSize * scale;
             const dynamicSubSize = subSize * scale;
             const dynamicPadding = boxPadding * scale;
             const dynamicRadius = boxRadius * scale;
 
-            // Height Calculations
             const lineH1 = dynamicNameSize * 1.2;
             const lineH2 = subTextStr ? dynamicSubSize * 1.2 : 0;
             const gap = subTextStr ? 4 * scale : 0;
 
-            // Width is forced to exact scaled width of the UI box
             const boxW = stickerWidth * scale; 
             const boxH = lineH1 + lineH2 + gap + (dynamicPadding * 2);
 
-            // 1. Draw Box Background
             if (boxBg && boxBg !== 'transparent') {
                 if (boxBg === 'gold_gradient') {
                     const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
@@ -290,7 +343,6 @@ const BulkSender = () => {
                 ctx.fill();
             }
 
-            // 2. Draw Box Border
             if (boxBorder && boxBorder !== 'none') {
                  if (boxBorder === 'gold_gradient') {
                     const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
@@ -313,7 +365,6 @@ const BulkSender = () => {
                  ctx.setLineDash([]);
             }
 
-            // 3. Perfect Centered Text Alignment
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             
@@ -369,8 +420,14 @@ const BulkSender = () => {
     const waToken = savedSettings.wa_access_token || '';
 
     setCampaignState('running'); pauseRef.current = false; stopRef.current = false;
-    setLogs([]); setProgress(0);
-    let currentSent = 0; let currentFailed = 0; let messagesProcessed = 0;                      
+    // Don't reset logs if resuming
+    if (progress === 100 || campaignState === 'completed' || campaignState === 'idle') {
+        setLogs([]); setProgress(0); setStats({ sent: 0, failed: 0, total: contacts.length });
+    }
+    
+    let currentSent = stats.sent || 0; 
+    let currentFailed = stats.failed || 0; 
+    let messagesProcessed = 0;                      
     let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
     const BATCH_PAUSE_MS = 30000;                  
 
@@ -391,7 +448,7 @@ const BulkSender = () => {
        }
     }
 
-    for (let i = 0; i < contacts.length; i++) {
+    for (let i = currentSent + currentFailed; i < contacts.length; i++) {
       if (stopRef.current) { setCampaignState('stopped'); break; }
       while (pauseRef.current) { await new Promise(resolve => setTimeout(resolve, 500)); if (stopRef.current) break; }
       if (stopRef.current) break;
@@ -473,323 +530,397 @@ const BulkSender = () => {
   return (
     <div className="flex flex-col min-h-screen lg:h-[calc(100vh-100px)] gap-4 md:gap-6 max-w-[1400px] mx-auto p-2 pb-20 lg:pb-2" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
       
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
-             Bulk Sender Pro
-             {waStatus === 'checking' && <span className="text-[10px] md:text-xs text-yellow-400">Waking Server...</span>}
-             {waStatus === 'sleeping' && <span className="text-[10px] md:text-xs text-yellow-500 animate-pulse">Server Asleep.</span>}
-             {waStatus === 'connected' && (
-                <span className="flex items-center gap-1.5 px-2 md:px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] md:text-xs text-green-400">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> {connectionMode === 'web' ? 'Web Connected' : 'API Connected'}
-                </span>
-             )}
-             {waStatus === 'disconnected' && (
-                <span className="flex items-center gap-1.5 px-2 md:px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full text-[10px] md:text-xs text-red-400">
-                  <span className="w-2 h-2 bg-red-500 rounded-full"></span> Disconnected
-                </span>
-             )}
-          </h2>
-          <p className="text-gray-400 text-[10px] md:text-sm mt-1">Send Messages, Images, Videos, PDFs, and Apps securely.</p>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full md:w-auto">
-           <div className="bg-[#0f172a] px-2 md:px-3 py-1.5 md:py-2 rounded-lg border border-gray-600 flex items-center gap-2 flex-1 md:flex-none justify-center">
-              <span className="text-gray-400 text-[10px] md:text-xs">Delay:</span>
-              <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 md:w-10 bg-transparent text-white font-bold text-center outline-none text-xs md:text-sm" />
-              <span className="text-gray-400 text-[10px] md:text-xs">sec</span>
-           </div>
-           {campaignState === 'idle' || campaignState === 'completed' || campaignState === 'stopped' ? (
-             <button onClick={startCampaign} disabled={contacts.length === 0} className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white shadow-lg transition-all ${contacts.length === 0 ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:scale-105'}`}>
-               {campaignState === 'completed' ? '🔄 Resend Campaign' : '▶ Start Campaign'}
-             </button>
-           ) : (
-             <div className="flex gap-2 w-full md:w-auto">
-               <button onClick={togglePause} className="flex-1 md:flex-none px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-yellow-600 hover:bg-yellow-500 shadow-lg transition-all flex items-center justify-center gap-2">
-                 {campaignState === 'paused' ? '▶ Resume' : '⏸ Pause'}
-               </button>
-               <button onClick={stopCampaign} className="flex-1 md:flex-none px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-red-600 hover:bg-red-500 shadow-lg transition-all flex items-center justify-center gap-2">
-                 ⏹ Stop
-               </button>
-             </div>
-           )}
-        </div>
+      {/* --- TOP TABS BAR --- */}
+      <div className="flex gap-4 w-full overflow-x-auto custom-scrollbar pb-2">
+        <button 
+            onClick={() => setMainTab('send')} 
+            className={`flex-shrink-0 px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${mainTab === 'send' ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] border border-fuchsia-400' : 'bg-[#1e293b] text-gray-400 hover:text-white hover:bg-[#2d3748] border border-gray-700'}`}
+        >
+            🚀 Send Campaign
+        </button>
+        <button 
+            onClick={() => setMainTab('history')} 
+            className={`flex-shrink-0 px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${mainTab === 'history' ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] border border-fuchsia-400' : 'bg-[#1e293b] text-gray-400 hover:text-white hover:bg-[#2d3748] border border-gray-700'}`}
+        >
+            📜 Sent History
+        </button>
       </div>
 
-      {campaignState !== 'idle' && (
-        <div className="bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-lg animate-fade-in flex-shrink-0">
-          <div className="flex justify-between items-center mb-2"><span className="text-xs md:text-sm font-bold text-white">Campaign Progress</span><span className="text-xs md:text-sm font-mono text-fuchsia-400">{progress}%</span></div>
-          <div className="w-full bg-gray-700 rounded-full h-2 md:h-3 mb-2 overflow-hidden"><div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 h-2 md:h-3 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div></div>
-          <div className="flex justify-between text-[10px] md:text-xs text-gray-400 font-medium"><span className="text-green-400">✅ Sent: {stats.sent}</span><span className="text-red-400">❌ Failed: {stats.failed}</span><span className="text-blue-400">⏳ Pending: {stats.total - stats.sent - stats.failed}</span></div>
-        </div>
-      )}
-
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto lg:overflow-hidden custom-scrollbar">
-        
-        <div className="w-full lg:w-[340px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0 lg:pb-10">
-          <div className="grid grid-cols-2 gap-2 md:gap-3 flex-shrink-0">
-             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
-               <div className="flex justify-between items-center mb-2">
-                 <h3 className="text-white font-bold text-[10px] md:text-[11px]">1. Contacts</h3>
-                 {contacts.length > 0 && <button onClick={clearContacts} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
+      {mainTab === 'send' ? (
+      <>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
+                  Bulk Sender Pro
+                  {waStatus === 'checking' && <span className="text-[10px] md:text-xs text-yellow-400">Waking Server...</span>}
+                  {waStatus === 'sleeping' && <span className="text-[10px] md:text-xs text-yellow-500 animate-pulse">Server Asleep.</span>}
+                  {waStatus === 'connected' && (
+                    <span className="flex items-center gap-1.5 px-2 md:px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] md:text-xs text-green-400">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> {connectionMode === 'web' ? 'Web Connected' : 'API Connected'}
+                    </span>
+                  )}
+                  {waStatus === 'disconnected' && (
+                    <span className="flex items-center gap-1.5 px-2 md:px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full text-[10px] md:text-xs text-red-400">
+                      <span className="w-2 h-2 bg-red-500 rounded-full"></span> Disconnected
+                    </span>
+                  )}
+              </h2>
+              <p className="text-gray-400 text-[10px] md:text-sm mt-1">Send Messages, Images, Videos, PDFs, and Apps securely.</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full md:w-auto">
+               <div className="bg-[#0f172a] px-2 md:px-3 py-1.5 md:py-2 rounded-lg border border-gray-600 flex items-center gap-2 flex-1 md:flex-none justify-center">
+                  <span className="text-gray-400 text-[10px] md:text-xs">Delay:</span>
+                  <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 md:w-10 bg-transparent text-white font-bold text-center outline-none text-xs md:text-sm" />
+                  <span className="text-gray-400 text-[10px] md:text-xs">sec</span>
                </div>
-               <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
-                 <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                 <p className="text-base md:text-lg mb-0.5">📊</p>
-                 <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{file ? file.name : "Upload Excel"}</p>
-               </div>
-             </div>
-             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
-               <div className="flex justify-between items-center mb-2">
-                 <h3 className="text-white font-bold text-[10px] md:text-[11px]">2. Any File</h3>
-                 {media && <button onClick={clearMedia} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
-               </div>
-               <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
-                  <input type="file" accept="*/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                  <p className="text-base md:text-lg mb-0.5">📎</p>
-                  <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{media ? media.name : "Attach File"}</p>
-               </div>
-             </div>
+               {campaignState === 'idle' || campaignState === 'completed' || campaignState === 'stopped' ? (
+                 <button onClick={startCampaign} disabled={contacts.length === 0} className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white shadow-lg transition-all ${contacts.length === 0 ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:scale-105'}`}>
+                   {campaignState === 'completed' || (stats.sent > 0 && progress < 100) ? '🔄 Resume/Resend' : '▶ Start Campaign'}
+                 </button>
+               ) : (
+                 <div className="flex gap-2 w-full md:w-auto">
+                   <button onClick={togglePause} className="flex-1 md:flex-none px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-yellow-600 hover:bg-yellow-500 shadow-lg transition-all flex items-center justify-center gap-2">
+                     {campaignState === 'paused' ? '▶ Resume' : '⏸ Pause'}
+                   </button>
+                   <button onClick={stopCampaign} className="flex-1 md:flex-none px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-red-600 hover:bg-red-500 shadow-lg transition-all flex items-center justify-center gap-2">
+                     ⏹ Stop
+                   </button>
+                 </div>
+               )}
+            </div>
           </div>
 
-          {contacts.length > 0 && (
-            <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 animate-fade-in-up">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-[10px] md:text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
-                <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[9px] md:text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">{showContactPreview ? 'Hide ▲' : 'View ▼'}</button>
-              </div>
-              {showContactPreview && (
-                <div className="animate-fade-in">
-                  <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
-                    <span className="text-[9px] md:text-[10px] text-gray-400 font-bold whitespace-nowrap">Add Code: +</span>
-                    <input type="text" value={countryCode} onChange={e => setCountryCode(e.target.value)} className="w-8 bg-transparent text-white text-[10px] md:text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" placeholder="91" />
-                    <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[9px] md:text-[10px] rounded font-bold py-1.5 transition-all">Apply to All</button>
-                  </div>
-                  <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner scroll-smooth custom-scrollbar">
-                    {contacts.map((c, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-[9px] md:text-[10px] border-b border-gray-800 pb-1">
-                        <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
-                        <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+          {(campaignState !== 'idle' || stats.sent > 0 || stats.failed > 0) && (
+            <div className="bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-lg animate-fade-in flex-shrink-0">
+              <div className="flex justify-between items-center mb-2"><span className="text-xs md:text-sm font-bold text-white">Campaign Progress</span><span className="text-xs md:text-sm font-mono text-fuchsia-400">{progress}%</span></div>
+              <div className="w-full bg-gray-700 rounded-full h-2 md:h-3 mb-2 overflow-hidden"><div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 h-2 md:h-3 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div></div>
+              <div className="flex justify-between text-[10px] md:text-xs text-gray-400 font-medium"><span className="text-green-400">✅ Sent: {stats.sent}</span><span className="text-red-400">❌ Failed: {stats.failed}</span><span className="text-blue-400">⏳ Pending: {Math.max(0, stats.total - stats.sent - stats.failed)}</span></div>
             </div>
           )}
 
-          <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col">
-            <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2">3. WhatsApp Message</h3>
-            <textarea value={message} onChange={(e) => setMessage(e.target.value)} className="w-full h-16 md:h-20 bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar mb-3" placeholder="Message text... use {{Name}}"></textarea>
+          <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto lg:overflow-hidden custom-scrollbar">
+            
+            <div className="w-full lg:w-[340px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0 lg:pb-10">
+              <div className="grid grid-cols-2 gap-2 md:gap-3 flex-shrink-0">
+                 <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
+                   <div className="flex justify-between items-center mb-2">
+                     <h3 className="text-white font-bold text-[10px] md:text-[11px]">1. Contacts</h3>
+                     {contacts.length > 0 && <button onClick={clearContacts} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
+                   </div>
+                   <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
+                     <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                     <p className="text-base md:text-lg mb-0.5">📊</p>
+                     <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{file ? file.name : "Upload Excel"}</p>
+                   </div>
+                 </div>
+                 <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
+                   <div className="flex justify-between items-center mb-2">
+                     <h3 className="text-white font-bold text-[10px] md:text-[11px]">2. Any File</h3>
+                     {media && <button onClick={clearMedia} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
+                   </div>
+                   <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
+                      <input type="file" accept="*/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                      <p className="text-base md:text-lg mb-0.5">📎</p>
+                      <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{media ? media.name : "Attach File"}</p>
+                   </div>
+                 </div>
+              </div>
 
-            {mediaPreview && (
-               <div className="border border-fuchsia-500/40 rounded-lg overflow-hidden flex flex-col">
-                  <div className="flex items-center justify-between bg-fuchsia-500/10 p-2 md:p-3 border-b border-fuchsia-500/40">
-                     <span className="text-[10px] md:text-xs text-white font-bold">✨ Smart Image Sticker</span>
-                     <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} className="w-4 h-4 md:w-5 md:h-5 accent-fuchsia-500" />
+              {contacts.length > 0 && (
+                <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 animate-fade-in-up">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-[10px] md:text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
+                    <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[9px] md:text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">{showContactPreview ? 'Hide ▲' : 'View ▼'}</button>
                   </div>
-                  
-                  {showSticker && (
-                     <>
-                        <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
-                           <button onClick={()=>setActiveTab('name')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name</button>
-                           <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
-                           <button onClick={()=>setActiveTab('box')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box</button>
-                        </div>
-
-                        <div className="p-3 bg-[#0f172a] space-y-3 lg:max-h-[250px] overflow-y-auto custom-scrollbar">
-                           {activeTab === 'name' && (
-                              <div className="space-y-3 animate-fade-in">
-                                 <div>
-                                    <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
-                                    <input type="range" min="12" max="72" value={nameSize} onChange={e=>setNameSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Font Family</label>
-                                       <select value={nameFont} onChange={e=>setNameFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                                       </select>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Format</label>
-                                       <div className="flex gap-1">
-                                          <button onClick={() => setNameWeight(nameWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${nameWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
-                                          <button onClick={() => setNameStyle(nameStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${nameStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
-                                       </div>
-                                    </div>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
-                                       <input type="color" value={nameColor} onChange={e=>setNameColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Border (Outline)</label>
-                                       <select value={nameOutline} onChange={e=>setNameOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                       </select>
-                                    </div>
-                                 </div>
-                              </div>
-                           )}
-
-                           {activeTab === 'sub' && (
-                              <div className="space-y-3 animate-fade-in">
-                                 <div>
-                                    <label className="text-[9px] text-gray-400 block mb-1">Sub-Text</label>
-                                    <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none focus:border-fuchsia-500"/>
-                                 </div>
-                                 <div>
-                                    <label className="text-[9px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
-                                    <input type="range" min="10" max="48" value={subSize} onChange={e=>setSubSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Font</label>
-                                       <select value={subFont} onChange={e=>setSubFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                                       </select>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Format</label>
-                                       <div className="flex gap-1">
-                                          <button onClick={() => setSubWeight(subWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${subWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
-                                          <button onClick={() => setSubStyle(subStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${subStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
-                                       </div>
-                                    </div>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
-                                       <input type="color" value={subColor} onChange={e=>setSubColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Outline</label>
-                                       <select value={subOutline} onChange={e=>setSubOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                       </select>
-                                    </div>
-                                 </div>
-                              </div>
-                           )}
-
-                           {activeTab === 'box' && (
-                              <div className="space-y-3 animate-fade-in">
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Background</label>
-                                       <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          <option value="gold_gradient">VIP Golden (New) ✨</option>
-                                          <option value="silver_gradient">VIP Silver (New) ✨</option>
-                                          <option value="rgba(0, 0, 0, 0.5)">Dark Glass</option>
-                                          <option value="rgba(255, 255, 255, 0.5)">Light Glass</option>
-                                          <option value="transparent">Transparent</option>
-                                          <option value="#000000">Solid Black</option>
-                                       </select>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Border</label>
-                                       <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          <option value="none">No Border</option>
-                                          <option value="gold_gradient">VIP Golden Border ✨</option>
-                                          <option value="silver_gradient">VIP Silver Border ✨</option>
-                                          <option value="2px solid white">Solid White</option>
-                                          <option value="2px dashed #d946ef">Dashed Pink</option>
-                                          <option value="2px solid #fbbf24">Solid Gold</option>
-                                       </select>
-                                    </div>
-                                 </div>
-                                 <div>
-                                    <label className="text-[9px] text-gray-400 flex justify-between">Radius <span>{boxRadius}px</span></label>
-                                    <input type="range" min="0" max="50" value={boxRadius} onChange={e=>setBoxRadius(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
-                                 </div>
-                                 <div>
-                                    <label className="text-[9px] text-gray-400 flex justify-between">Padding <span>{boxPadding}px</span></label>
-                                    <input type="range" min="0" max="40" value={boxPadding} onChange={e=>setBoxPadding(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
-                                 </div>
-                              </div>
-                           )}
-                        </div>
-                     </>
+                  {showContactPreview && (
+                    <div className="animate-fade-in">
+                      <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
+                        <span className="text-[9px] md:text-[10px] text-gray-400 font-bold whitespace-nowrap">Add Code: +</span>
+                        <input type="text" value={countryCode} onChange={e => setCountryCode(e.target.value)} className="w-8 bg-transparent text-white text-[10px] md:text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" placeholder="91" />
+                        <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[9px] md:text-[10px] rounded font-bold py-1.5 transition-all">Apply to All</button>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner scroll-smooth custom-scrollbar">
+                        {contacts.map((c, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-[9px] md:text-[10px] border-b border-gray-800 pb-1">
+                            <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
+                            <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
-               </div>
-            )}
-          </div>
-        </div>
+                </div>
+              )}
 
-        <div className="flex-1 bg-[#0f172a] rounded-2xl border border-gray-700 shadow-lg flex flex-col relative overflow-hidden min-h-[350px] lg:min-h-0">
-           <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-black/80 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs text-white border border-gray-700 flex items-center gap-2 shadow-lg">
-             <span className="animate-pulse w-2 h-2 bg-fuchsia-500 rounded-full"></span> Live Preview
-           </div>
-           
-           <div className="flex-1 flex items-center justify-center p-2 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5 overflow-hidden" style={{touchAction: 'none'}} onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
-             {media ? (
-               <div ref={imageContainerRef} className={`relative max-w-full max-h-full shadow-2xl rounded-lg select-none flex items-center justify-center ${!mediaPreview ? 'border-2 border-dashed border-gray-600 p-8' : 'border-4 border-gray-800'}`}>
-                 {mediaPreview ? ( 
-                    <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[50vh] lg:max-h-[65vh] object-contain pointer-events-none" /> 
-                 ) : ( 
-                    <div className="w-48 h-48 md:w-64 md:h-64 bg-gray-800 flex items-center justify-center text-gray-300 flex-col px-4 md:px-6 text-center rounded-xl">
-                       <span className="text-4xl md:text-6xl mb-3 md:mb-4">{media.type.startsWith('video') ? '🎥' : media.type.startsWith('audio') ? '🎵' : media.type.includes('pdf') ? '📕' : media.name.endsWith('.apk') ? '🤖' : '📁'}</span>
-                       <span className="font-bold text-[10px] md:text-sm truncate w-full">{media.name}</span>
-                       <span className="text-[8px] md:text-[10px] text-fuchsia-400 mt-3 md:mt-4">File ready to send (Universal)</span>
-                    </div> 
-                 )}
-                 
-                 {showSticker && mediaPreview && (
-                   <div 
-                     onMouseDown={handleDragStart} onTouchStart={handleDragStart} 
-                     style={{ 
-                        top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', 
-                        background: getBgStyle(boxBg), border: getBorderStyle(boxBorder), borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
-                        backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
-                     }} 
-                     className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
-                   >
-                     <div 
-                        style={{ 
-                           color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
-                           WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
-                           textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
-                           lineHeight: '1.2'
-                        }}
-                        className="text-center w-full break-words"
-                     >
-                        {nameText}
-                     </div>
-                     {subText && ( 
-                        <div 
-                           style={{ 
-                              color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
-                              WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
-                              marginTop: '4px', lineHeight: '1.2'
-                           }}
-                           className="text-center w-full break-words opacity-90"
-                        >
-                           {subText}
+              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col">
+                <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2">3. WhatsApp Message</h3>
+                <textarea value={message} onChange={(e) => setMessage(e.target.value)} className="w-full h-16 md:h-20 bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar mb-3" placeholder="Message text... use {{Name}}"></textarea>
+
+                {mediaPreview && (
+                   <div className="border border-fuchsia-500/40 rounded-lg overflow-hidden flex flex-col">
+                      <div className="flex items-center justify-between bg-fuchsia-500/10 p-2 md:p-3 border-b border-fuchsia-500/40">
+                         <span className="text-[10px] md:text-xs text-white font-bold">✨ Smart Image Sticker</span>
+                         <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} className="w-4 h-4 md:w-5 md:h-5 accent-fuchsia-500" />
+                      </div>
+                      
+                      {showSticker && (
+                         <>
+                            <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
+                               <button onClick={()=>setActiveTab('name')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name</button>
+                               <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
+                               <button onClick={()=>setActiveTab('box')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box</button>
+                            </div>
+
+                            <div className="p-3 bg-[#0f172a] space-y-3 lg:max-h-[250px] overflow-y-auto custom-scrollbar">
+                               {activeTab === 'name' && (
+                                  <div className="space-y-3 animate-fade-in">
+                                     <div>
+                                        <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
+                                        <input type="range" min="12" max="72" value={nameSize} onChange={e=>setNameSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Font Family</label>
+                                           <select value={nameFont} onChange={e=>setNameFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                           </select>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Format</label>
+                                           <div className="flex gap-1">
+                                              <button onClick={() => setNameWeight(nameWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${nameWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
+                                              <button onClick={() => setNameStyle(nameStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${nameStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
+                                           </div>
+                                        </div>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
+                                           <input type="color" value={nameColor} onChange={e=>setNameColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Border (Outline)</label>
+                                           <select value={nameOutline} onChange={e=>setNameOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                           </select>
+                                        </div>
+                                     </div>
+                                  </div>
+                               )}
+
+                               {activeTab === 'sub' && (
+                                  <div className="space-y-3 animate-fade-in">
+                                     <div>
+                                        <label className="text-[9px] text-gray-400 block mb-1">Sub-Text</label>
+                                        <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none focus:border-fuchsia-500"/>
+                                     </div>
+                                     <div>
+                                        <label className="text-[9px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
+                                        <input type="range" min="10" max="48" value={subSize} onChange={e=>setSubSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Font</label>
+                                           <select value={subFont} onChange={e=>setSubFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                           </select>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Format</label>
+                                           <div className="flex gap-1">
+                                              <button onClick={() => setSubWeight(subWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${subWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
+                                              <button onClick={() => setSubStyle(subStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${subStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
+                                           </div>
+                                        </div>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
+                                           <input type="color" value={subColor} onChange={e=>setSubColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Outline</label>
+                                           <select value={subOutline} onChange={e=>setSubOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                           </select>
+                                        </div>
+                                     </div>
+                                  </div>
+                               )}
+
+                               {activeTab === 'box' && (
+                                  <div className="space-y-3 animate-fade-in">
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Background</label>
+                                           <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              <option value="gold_gradient">VIP Golden (New) ✨</option>
+                                              <option value="silver_gradient">VIP Silver (New) ✨</option>
+                                              <option value="rgba(0, 0, 0, 0.5)">Dark Glass</option>
+                                              <option value="rgba(255, 255, 255, 0.5)">Light Glass</option>
+                                              <option value="transparent">Transparent</option>
+                                              <option value="#000000">Solid Black</option>
+                                           </select>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Border</label>
+                                           <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              <option value="none">No Border</option>
+                                              <option value="gold_gradient">VIP Golden Border ✨</option>
+                                              <option value="silver_gradient">VIP Silver Border ✨</option>
+                                              <option value="2px solid white">Solid White</option>
+                                              <option value="2px dashed #d946ef">Dashed Pink</option>
+                                              <option value="2px solid #fbbf24">Solid Gold</option>
+                                           </select>
+                                        </div>
+                                     </div>
+                                     <div>
+                                        <label className="text-[9px] text-gray-400 flex justify-between">Radius <span>{boxRadius}px</span></label>
+                                        <input type="range" min="0" max="50" value={boxRadius} onChange={e=>setBoxRadius(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                     </div>
+                                     <div>
+                                        <label className="text-[9px] text-gray-400 flex justify-between">Padding <span>{boxPadding}px</span></label>
+                                        <input type="range" min="0" max="40" value={boxPadding} onChange={e=>setBoxPadding(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                     </div>
+                                  </div>
+                               )}
+                            </div>
+                         </>
+                      )}
+                   </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 bg-[#0f172a] rounded-2xl border border-gray-700 shadow-lg flex flex-col relative overflow-hidden min-h-[350px] lg:min-h-0">
+               <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-black/80 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs text-white border border-gray-700 flex items-center gap-2 shadow-lg">
+                 <span className="animate-pulse w-2 h-2 bg-fuchsia-500 rounded-full"></span> Live Preview
+               </div>
+               
+               <div className="flex-1 flex items-center justify-center p-2 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5 overflow-hidden" style={{touchAction: 'none'}} onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
+                 {media ? (
+                   <div ref={imageContainerRef} className={`relative max-w-full max-h-full shadow-2xl rounded-lg select-none flex items-center justify-center ${!mediaPreview ? 'border-2 border-dashed border-gray-600 p-8' : 'border-4 border-gray-800'}`}>
+                     {mediaPreview ? ( 
+                        <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[50vh] lg:max-h-[65vh] object-contain pointer-events-none" /> 
+                     ) : ( 
+                        <div className="w-48 h-48 md:w-64 md:h-64 bg-gray-800 flex items-center justify-center text-gray-300 flex-col px-4 md:px-6 text-center rounded-xl">
+                           <span className="text-4xl md:text-6xl mb-3 md:mb-4">{media.type.startsWith('video') ? '🎥' : media.type.startsWith('audio') ? '🎵' : media.type.includes('pdf') ? '📕' : media.name.endsWith('.apk') ? '🤖' : '📁'}</span>
+                           <span className="font-bold text-[10px] md:text-sm truncate w-full">{media.name}</span>
+                           <span className="text-[8px] md:text-[10px] text-fuchsia-400 mt-3 md:mt-4">File ready to send (Universal)</span>
                         </div> 
                      )}
-                     <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-8 h-8 md:w-6 md:h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30"><span className="text-[12px] md:text-[10px] text-fuchsia-600">⤡</span></div>
+                     
+                     {showSticker && mediaPreview && (
+                       <div 
+                         onMouseDown={handleDragStart} onTouchStart={handleDragStart} 
+                         style={{ 
+                            top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', 
+                            background: getBgStyle(boxBg), border: getBorderStyle(boxBorder), borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
+                            backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
+                         }} 
+                         className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
+                       >
+                         <div 
+                            style={{ 
+                               color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
+                               WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
+                               textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
+                               lineHeight: '1.2'
+                            }}
+                            className="text-center w-full break-words"
+                         >
+                            {nameText}
+                         </div>
+                         {subText && ( 
+                            <div 
+                               style={{ 
+                                  color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
+                                  WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
+                                  marginTop: '4px', lineHeight: '1.2'
+                               }}
+                               className="text-center w-full break-words opacity-90"
+                            >
+                               {subText}
+                            </div> 
+                         )}
+                         <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-8 h-8 md:w-6 md:h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30"><span className="text-[12px] md:text-[10px] text-fuchsia-600">⤡</span></div>
+                       </div>
+                     )}
                    </div>
-                 )}
+                 ) : ( <div className="text-gray-500 text-center flex flex-col items-center"><p className="text-4xl md:text-5xl mb-3 md:mb-4 opacity-50">📤</p><p className="font-bold text-xs md:text-base">Canvas is Empty</p><p className="text-[9px] md:text-xs mt-1 md:mt-2">Upload any file or image</p></div> )}
                </div>
-             ) : ( <div className="text-gray-500 text-center flex flex-col items-center"><p className="text-4xl md:text-5xl mb-3 md:mb-4 opacity-50">📤</p><p className="font-bold text-xs md:text-base">Canvas is Empty</p><p className="text-[9px] md:text-xs mt-1 md:mt-2">Upload any file or image</p></div> )}
-           </div>
-        </div>
+            </div>
 
-        <div className="w-full lg:w-[280px] bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden h-[300px] lg:h-auto flex-shrink-0">
-          <div className="p-3 md:p-4 border-b border-gray-700 bg-[#0f172a] font-bold text-white flex justify-between items-center"><span className="text-xs md:text-base">📡 Action Logs</span><span className="text-[9px] md:text-[10px] bg-gray-800 px-2 py-1 rounded">Total: {stats.total}</span></div>
-          <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 custom-scrollbar scroll-smooth">
-            {logs.length === 0 ? ( <div className="h-full flex flex-col items-center justify-center opacity-50 text-gray-500"><span className="text-3xl md:text-4xl mb-2">⏳</span><p className="text-[10px] md:text-sm">Activity will appear here</p></div> ) : logs.map(log => (
-               <div key={log.id} className="flex flex-col bg-[#0f172a] p-2 md:p-3 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors animate-fade-in">
-                  <div className="flex justify-between items-center mb-1"><span className="text-[10px] md:text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span><span className={`text-[8px] md:text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') || log.status.includes('❌') || log.status.includes('Timeout') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{log.status}</span></div>
-                  <span className="text-[9px] md:text-xs font-mono text-gray-500">{log.to}</span>
-               </div>
-            ))}
+            <div className="w-full lg:w-[280px] bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden h-[300px] lg:h-auto flex-shrink-0">
+              <div className="p-3 md:p-4 border-b border-gray-700 bg-[#0f172a] font-bold text-white flex justify-between items-center"><span className="text-xs md:text-base">📡 Action Logs</span><span className="text-[9px] md:text-[10px] bg-gray-800 px-2 py-1 rounded">Total: {stats.total}</span></div>
+              <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 custom-scrollbar scroll-smooth">
+                {logs.length === 0 ? ( <div className="h-full flex flex-col items-center justify-center opacity-50 text-gray-500"><span className="text-3xl md:text-4xl mb-2">⏳</span><p className="text-[10px] md:text-sm">Activity will appear here</p></div> ) : logs.map(log => (
+                   <div key={log.id} className="flex flex-col bg-[#0f172a] p-2 md:p-3 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors animate-fade-in">
+                      <div className="flex justify-between items-center mb-1"><span className="text-[10px] md:text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span><span className={`text-[8px] md:text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') || log.status.includes('❌') || log.status.includes('Timeout') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{log.status}</span></div>
+                      <span className="text-[9px] md:text-xs font-mono text-gray-500">{log.to}</span>
+                   </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
-
+      </>
+      ) : (
+      // --- SENT HISTORY TAB ---
+      <div className="flex-1 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden animate-fade-in">
+         <div className="p-4 md:p-6 border-b border-gray-700 bg-[#0f172a] flex justify-between items-center">
+            <div>
+               <h2 className="text-lg md:text-xl font-bold text-white">Sent Message History</h2>
+               <p className="text-gray-400 text-xs mt-1">View the delivery status of your recent WhatsApp campaigns.</p>
+            </div>
+            <button onClick={fetchSentHistory} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2">
+               🔄 Refresh
+            </button>
+         </div>
+         <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
+            {isLoadingHistory ? (
+               <div className="flex flex-col items-center justify-center h-full text-fuchsia-400">
+                  <span className="animate-spin text-4xl mb-4">⚙️</span>
+                  <p>Fetching history from secure database...</p>
+               </div>
+            ) : historyLogs.length === 0 ? (
+               <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-70">
+                  <span className="text-5xl mb-4">📭</span>
+                  <p>No messages sent yet. Start a campaign to see history!</p>
+               </div>
+            ) : (
+               <div className="w-full bg-[#0f172a] rounded-xl border border-gray-700 overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                     <thead>
+                        <tr className="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider">
+                           <th className="p-4 font-semibold border-b border-gray-700">Action / Message</th>
+                           <th className="p-4 font-semibold border-b border-gray-700 w-32">Status</th>
+                           <th className="p-4 font-semibold border-b border-gray-700 w-48">Date & Time</th>
+                        </tr>
+                     </thead>
+                     <tbody className="text-sm">
+                        {historyLogs.map((log, i) => (
+                           <tr key={i} className="hover:bg-[#1e293b] transition-colors border-b border-gray-800/50">
+                              <td className="p-4 text-gray-300 font-medium">{log.action}</td>
+                              <td className="p-4">
+                                 <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${log.status === 'Success' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                    {log.status === 'Success' ? '✅ Delivered' : '❌ Failed'}
+                                 </span>
+                              </td>
+                              <td className="p-4 text-gray-500 font-mono text-xs">{new Date(log.created_at).toLocaleString()}</td>
+                           </tr>
+                        ))}
+                     </tbody>
+                  </table>
+                  <div className="p-4 text-center text-xs text-fuchsia-400 bg-gray-800/50 border-t border-gray-700">
+                     Note: The backend currently limits history to the 5 most recent items. Please update the backend code to view the full list.
+                  </div>
+               </div>
+            )}
+         </div>
       </div>
+      )}
+
     </div>
   );
 };
