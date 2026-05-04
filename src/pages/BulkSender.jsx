@@ -2,12 +2,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const BulkSender = () => {
-  // --- UI Tabs State ---
-  const [mainTab, setMainTab] = useState('send'); // 'send' or 'history'
+  const [mainTab, setMainTab] = useState('send'); 
   const [historyLogs, setHistoryLogs] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-  // --- Core States ---
   const [contacts, setContacts] = useState([]);
   const [showContactPreview, setShowContactPreview] = useState(false);
   const [countryCode, setCountryCode] = useState('91'); 
@@ -19,11 +17,9 @@ const BulkSender = () => {
   const [waStatus, setWaStatus] = useState('checking'); 
   const [connectionMode, setConnectionMode] = useState('api');
   
-  // --- Advanced Studio States ---
   const [showSticker, setShowSticker] = useState(false);
   const [activeTab, setActiveTab] = useState('name');
 
-  // 1. Name Tag Config
   const [nameText, setNameText] = useState("{{Name}}");
   const [nameFont, setNameFont] = useState("Arial, sans-serif");
   const [nameSize, setNameSize] = useState(32);
@@ -32,7 +28,6 @@ const BulkSender = () => {
   const [nameWeight, setNameWeight] = useState("bold");
   const [nameStyle, setNameStyle] = useState("normal");
 
-  // 2. Sub-Text Config
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
   const [subFont, setSubFont] = useState("Arial, sans-serif");
   const [subSize, setSubSize] = useState(14);
@@ -41,19 +36,16 @@ const BulkSender = () => {
   const [subWeight, setSubWeight] = useState("normal");
   const [subStyle, setSubStyle] = useState("normal");
 
-  // 3. Box Config
   const [boxBg, setBoxBg] = useState("rgba(0, 0, 0, 0.5)");
   const [boxBorder, setBoxBorder] = useState("none");
   const [boxRadius, setBoxRadius] = useState(12);
   const [boxPadding, setBoxPadding] = useState(16);
   
-  // Placement
   const [stickerWidth, setStickerWidth] = useState(250); 
   const [stickerPos, setStickerPos] = useState({ x: 50, y: 70 }); 
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   
-  // --- Campaign States ---
   const [campaignState, setCampaignState] = useState('idle'); 
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
@@ -68,7 +60,6 @@ const BulkSender = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
-  // FONT OPTIONS
   const fontOptions = [
     { label: "Modern (Arial)", value: "Arial, sans-serif" },
     { label: "Classic (Times)", value: "'Times New Roman', serif" },
@@ -105,7 +96,6 @@ const BulkSender = () => {
     return border;
   };
 
-  // --- AUTO RESUME LOGIC (localStorage) ---
   useEffect(() => {
     const savedState = localStorage.getItem('reachify_campaign_backup');
     if (savedState) {
@@ -135,7 +125,6 @@ const BulkSender = () => {
     }
   }, [contacts, logs, stats, progress, campaignState]);
 
-  // --- CONNECTION CHECKER ---
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
@@ -167,7 +156,6 @@ const BulkSender = () => {
     return () => clearInterval(interval);
   }, [user.email]);
 
-  // --- FETCH SENT HISTORY ---
   const fetchSentHistory = async () => {
     setIsLoadingHistory(true);
     try {
@@ -542,7 +530,7 @@ const BulkSender = () => {
             onClick={() => setMainTab('history')} 
             className={`flex-shrink-0 px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${mainTab === 'history' ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] border border-fuchsia-400' : 'bg-[#1e293b] text-gray-400 hover:text-white hover:bg-[#2d3748] border border-gray-700'}`}
         >
-            📜 Sent History (Advanced)
+            📜 Sent History (Real Data)
         </button>
       </div>
 
@@ -866,22 +854,22 @@ const BulkSender = () => {
           </div>
       </>
       ) : (
-      // --- ADVANCED SENT HISTORY TAB ---
+      // --- REAL SENT HISTORY TAB ---
       <div className="flex-1 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden animate-fade-in">
          <div className="p-4 md:p-6 border-b border-gray-700 bg-[#0f172a] flex justify-between items-center">
             <div>
-               <h2 className="text-lg md:text-xl font-bold text-white">Live History & Delivery Status</h2>
-               <p className="text-gray-400 text-xs mt-1">Track message content, delivery (double-tick), and read receipts.</p>
+               <h2 className="text-lg md:text-xl font-bold text-white">Sent Message History</h2>
+               <p className="text-gray-400 text-xs mt-1">Live data fetched directly from your Cloudflare Database.</p>
             </div>
-            <button onClick={fetchSentHistory} className="px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 shadow-lg">
-               🔄 Refresh Data
+            <button onClick={fetchSentHistory} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2">
+               🔄 Refresh
             </button>
          </div>
          <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
             {isLoadingHistory ? (
                <div className="flex flex-col items-center justify-center h-full text-fuchsia-400">
                   <span className="animate-spin text-4xl mb-4">⚙️</span>
-                  <p>Syncing data with secure server...</p>
+                  <p>Fetching real history from secure database...</p>
                </div>
             ) : historyLogs.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-70">
@@ -892,61 +880,47 @@ const BulkSender = () => {
                <div className="w-full bg-[#0f172a] rounded-xl border border-gray-700 overflow-hidden">
                   <table className="w-full text-left border-collapse">
                      <thead>
-                        <tr className="bg-gray-800 text-gray-400 text-[11px] uppercase tracking-wider">
-                           <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Recipient Info</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 w-2/5">Message Content</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Delivery Status</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 text-right">Time</th>
+                        <tr className="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider">
+                           <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Recipient</th>
+                           <th className="p-4 font-semibold border-b border-gray-700 w-2/4">Message Content</th>
+                           <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Status</th>
+                           <th className="p-4 font-semibold border-b border-gray-700 text-right w-1/4">Date & Time</th>
                         </tr>
                      </thead>
                      <tbody className="text-sm">
                         {historyLogs.map((log, i) => {
-                           // Extracting phone number from old "[API] Sent to 9198..." format for now
-                           const phoneMatch = log.action.match(/\d{10,15}/);
-                           const displayPhone = phoneMatch ? `+${phoneMatch[0]}` : log.action;
-                           
+                           // Extracting Phone & Message parts safely from new log format ("To: +9198... | Msg: Hello...")
+                           const parts = log.action.split(' | Msg: ');
+                           const phonePart = parts[0] || log.action;
+                           const messagePart = parts[1] || 'No Preview Available (Old Log)';
+
                            return (
                            <tr key={i} className="hover:bg-[#1e293b] transition-colors border-b border-gray-800/50">
                               <td className="p-4">
-                                 <div className="text-gray-300 font-medium text-xs mb-1">Customer</div>
-                                 <div className="text-fuchsia-400 font-mono text-[11px] bg-fuchsia-500/10 inline-block px-1.5 py-0.5 rounded">{displayPhone}</div>
-                              </td>
-                              <td className="p-4">
-                                 <div className="bg-gray-800/50 p-2 rounded border border-gray-700 text-gray-400 text-[11px] italic line-clamp-2">
-                                    {/* Placeholder for content until backend is updated */}
-                                    {log.message_content ? log.message_content : "🖼 VIP Template / Media (Backend update pending to view text)"}
+                                 <div className="text-fuchsia-400 font-mono text-[11px] bg-fuchsia-500/10 inline-block px-2 py-1 rounded">
+                                     {phonePart}
                                  </div>
                               </td>
                               <td className="p-4">
-                                 <div className="flex flex-col gap-1.5 w-max">
-                                     {/* Fake UI structure for Advance Tracking. Real tracking needs Webhook */}
-                                     {log.status === 'Success' ? (
-                                        <>
-                                           <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-green-500/20 text-green-400 flex items-center gap-1.5 border border-green-500/30">
-                                              <span className="text-[8px]">✓</span> Sent to API
-                                           </span>
-                                           <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-gray-700 text-gray-400 flex items-center gap-1.5 border border-gray-600 opacity-60" title="Requires Webhook Setup">
-                                              <span className="text-[8px]">✓✓</span> Delivered
-                                           </span>
-                                        </>
-                                     ) : (
-                                        <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-red-500/20 text-red-400 flex items-center gap-1.5 border border-red-500/30">
-                                            ❌ Failed
-                                        </span>
-                                     )}
+                                 <div className="text-gray-300 font-medium text-[11px] bg-[#1e293b] p-2 rounded border border-gray-700 line-clamp-2">
+                                     {messagePart}
                                  </div>
+                              </td>
+                              <td className="p-4">
+                                 <span className={`px-2.5 py-1 text-[10px] font-bold rounded-full ${log.status === 'Success' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`}>
+                                    {log.status === 'Success' ? '✅ Sent to Meta' : '❌ Failed'}
+                                 </span>
                               </td>
                               <td className="p-4 text-right text-gray-500 font-mono text-[10px]">
-                                 {new Date(log.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                 <div className="text-[9px] mt-0.5 opacity-60">{new Date(log.created_at).toLocaleDateString()}</div>
+                                 {new Date(log.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
                               </td>
                            </tr>
-                        )})}
+                           );
+                        })}
                      </tbody>
                   </table>
-                  <div className="p-3 text-center text-[10px] md:text-xs text-yellow-400 bg-yellow-500/10 border-t border-gray-700 flex flex-col gap-1">
-                     <p><strong>Note:</strong> Message preview and "Delivered / Read (Blue Tick)" tracking requires backend & Webhook updates.</p>
-                     <p className="opacity-70">The current view shows the basic "Sent" confirmation from Meta API.</p>
+                  <div className="p-4 text-center text-xs text-yellow-400 bg-gray-800/50 border-t border-gray-700">
+                     Latest 50 records shown.
                   </div>
                </div>
             )}
