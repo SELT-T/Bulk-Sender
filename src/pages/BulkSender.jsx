@@ -6,6 +6,11 @@ const BulkSender = () => {
   const [mainTab, setMainTab] = useState('send'); 
   const [historyLogs, setHistoryLogs] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
+  // --- Advanced History States (Pagination & Date) ---
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [historyDateFilter, setHistoryDateFilter] = useState('');
 
   // --- Core States ---
   const [contacts, setContacts] = useState([]);
@@ -167,25 +172,35 @@ const BulkSender = () => {
     return () => clearInterval(interval);
   }, [user.email]);
 
-  // --- FETCH SENT HISTORY ---
-  const fetchSentHistory = async () => {
+  // --- FETCH SENT HISTORY (ADVANCED) ---
+  const fetchSentHistory = async (page = historyPage, dateStr = historyDateFilter) => {
     setIsLoadingHistory(true);
     try {
         const res = await fetch(`${API_URL}/dashboard-stats`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: user.email })
+            body: JSON.stringify({ email: user.email, page: page, limit: 50, date: dateStr })
         });
         const data = await res.json();
-        if (data.recent) setHistoryLogs(data.recent);
+        if (data.recent) {
+            setHistoryLogs(data.recent);
+            setHistoryTotalPages(data.totalPages || 1);
+        }
     } catch (e) {
         console.error("History Error", e);
     }
     setIsLoadingHistory(false);
   };
 
+  // Trigger fetch when Tab or Page changes
   useEffect(() => {
-      if (mainTab === 'history') fetchSentHistory();
-  }, [mainTab]);
+      if (mainTab === 'history') fetchSentHistory(historyPage, historyDateFilter);
+  }, [mainTab, historyPage]);
+
+  // Search by Date Button
+  const handleDateSearch = () => {
+      setHistoryPage(1); // Reset to page 1 on new search
+      fetchSentHistory(1, historyDateFilter);
+  };
 
   const handleMediaUpload = (e) => {
     const uploadedFile = e.target.files[0];
@@ -542,12 +557,13 @@ const BulkSender = () => {
             onClick={() => setMainTab('history')} 
             className={`flex-shrink-0 px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${mainTab === 'history' ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] border border-fuchsia-400' : 'bg-[#1e293b] text-gray-400 hover:text-white hover:bg-[#2d3748] border border-gray-700'}`}
         >
-            📜 Sent History & Tracker
+            📜 Sent History (Advanced)
         </button>
       </div>
 
       {mainTab === 'send' ? (
       <>
+          {/* ... [SEND TAB CODE EXACTLY THE SAME AS BEFORE - Unchanged to preserve all features] ... */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
@@ -866,107 +882,148 @@ const BulkSender = () => {
           </div>
       </>
       ) : (
-      // --- ADVANCED TRACKING HISTORY TAB ---
+      // --- ADVANCED TRACKING HISTORY TAB (Pagination & Filter) ---
       <div className="flex-1 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden animate-fade-in">
-         <div className="p-4 md:p-6 border-b border-gray-700 bg-[#0f172a] flex justify-between items-center">
+         <div className="p-4 md:p-6 border-b border-gray-700 bg-[#0f172a] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
                <h2 className="text-lg md:text-xl font-bold text-white">Live Tracking Dashboard</h2>
                <p className="text-gray-400 text-xs mt-1">Real-time status updates directly from your database.</p>
             </div>
-            <button onClick={fetchSentHistory} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm">
-               🔄 Sync Data
-            </button>
+            
+            {/* Search Filter Controls */}
+            <div className="flex items-center gap-2 w-full md:w-auto">
+               <input 
+                  type="date" 
+                  value={historyDateFilter} 
+                  onChange={(e) => setHistoryDateFilter(e.target.value)} 
+                  className="bg-[#1e293b] text-sm text-gray-300 border border-gray-600 rounded-lg px-3 py-2 outline-none focus:border-fuchsia-500"
+               />
+               <button 
+                  onClick={handleDateSearch} 
+                  className="px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm"
+               >
+                  🔍 Search
+               </button>
+            </div>
          </div>
-         <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
+         <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-[#0f172a]">
             {isLoadingHistory ? (
                <div className="flex flex-col items-center justify-center h-full text-fuchsia-400">
                   <span className="animate-spin text-4xl mb-4">⚙️</span>
-                  <p>Fetching real history from database...</p>
+                  <p>Fetching history from secure database...</p>
                </div>
             ) : historyLogs.length === 0 ? (
                <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-70">
                   <span className="text-5xl mb-4">📭</span>
-                  <p>No messages sent yet. Start a campaign to see live tracking!</p>
+                  <p>No records found for this selection.</p>
                </div>
             ) : (
-               <div className="w-full bg-[#0f172a] rounded-xl border border-gray-700 overflow-hidden shadow-inner">
-                  <table className="w-full text-left border-collapse">
-                     <thead>
-                        <tr className="bg-gray-800/80 text-gray-400 text-[11px] uppercase tracking-wider">
-                           <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Recipient Number</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 w-2/5">Message Content</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 text-center">Live Delivery Status</th>
-                           <th className="p-4 font-semibold border-b border-gray-700 text-right">Sent Time</th>
-                        </tr>
-                     </thead>
-                     <tbody className="text-sm">
-                        {historyLogs.map((log, i) => {
-                           // Parse real data from DB
-                           const parts = log.action.split(' | Msg: ');
-                           const phonePart = parts[0] ? parts[0].replace('To: ', '') : log.action;
-                           const messagePart = parts[1] || 'No Preview Available (Old Log)';
-                           
-                           // Determine advanced status
-                           let advanceStatus = 'sent'; 
-                           if (log.status === 'Error') advanceStatus = 'failed';
-                           else if (log.status === 'Delivered') advanceStatus = 'delivered'; // Ready for future webhook
-                           else if (log.status === 'Read') advanceStatus = 'read'; // Ready for future webhook
+               <div className="w-full bg-[#1e293b] rounded-xl border border-gray-700 overflow-hidden shadow-inner flex flex-col h-full">
+                  <div className="flex-1 overflow-y-auto custom-scrollbar">
+                      <table className="w-full text-left border-collapse">
+                         <thead className="sticky top-0 bg-gray-800 z-10 shadow-sm">
+                            <tr className="text-gray-400 text-[11px] uppercase tracking-wider">
+                               <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Recipient Number</th>
+                               <th className="p-4 font-semibold border-b border-gray-700 w-2/5">Message Content</th>
+                               <th className="p-4 font-semibold border-b border-gray-700 text-center">Live Delivery Status</th>
+                               <th className="p-4 font-semibold border-b border-gray-700 text-right">Sent Time</th>
+                            </tr>
+                         </thead>
+                         <tbody className="text-sm">
+                            {historyLogs.map((log, i) => {
+                               // Clean Parser for Old & New Logs (Removes Fake Text)
+                               let phonePart = log.action;
+                               let messagePart = "Media / Template Message"; 
+                               
+                               if (log.action.includes(' | Msg: ')) {
+                                   const parts = log.action.split(' | Msg: ');
+                                   phonePart = parts[0].replace('To: ', '');
+                                   if (parts[1] && parts[1] !== "N/A" && !parts[1].includes("No Preview")) {
+                                       messagePart = parts[1];
+                                   }
+                               } else if (log.action.includes('[API] Sent to ')) {
+                                   phonePart = log.action.replace('[API] Sent to ', '+');
+                               } else if (log.action.includes('[Web] Sent to ')) {
+                                   phonePart = log.action.replace('[Web] Sent to ', '+');
+                               }
+                               
+                               // Determine advanced status
+                               let advanceStatus = 'sent'; 
+                               if (log.status === 'Error') advanceStatus = 'failed';
+                               else if (log.status === 'Delivered') advanceStatus = 'delivered'; 
+                               else if (log.status === 'Read') advanceStatus = 'read'; 
 
-                           return (
-                           <tr key={i} className="hover:bg-[#1e293b]/50 transition-colors border-b border-gray-800/50">
-                              <td className="p-4">
-                                 <div className="text-fuchsia-400 font-mono text-[12px] bg-fuchsia-500/10 inline-block px-2 py-1 rounded border border-fuchsia-500/20">
-                                     {phonePart}
-                                 </div>
-                              </td>
-                              <td className="p-4">
-                                 <div className="text-gray-300 font-medium text-[11px] bg-black/30 p-2.5 rounded border border-gray-700/50 line-clamp-2" title={messagePart}>
-                                     {messagePart}
-                                 </div>
-                              </td>
-                              <td className="p-4">
-                                  {advanceStatus === 'failed' ? (
-                                      <div className="flex justify-center">
-                                          <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-                                             ❌ Failed to Send
-                                          </span>
-                                      </div>
-                                  ) : (
-                                      <div className="flex items-center justify-center gap-1.5 md:gap-3">
-                                          {/* Sent Step */}
-                                          <div className="flex flex-col items-center justify-center text-green-400">
-                                             <span className="text-[12px] md:text-sm font-bold bg-green-500/10 w-6 h-6 flex items-center justify-center rounded-full border border-green-500/30">✓</span>
-                                             <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">SENT</span>
+                               return (
+                               <tr key={i} className="hover:bg-gray-800/50 transition-colors border-b border-gray-700/50">
+                                  <td className="p-4">
+                                     <div className="text-fuchsia-400 font-mono text-[12px] bg-fuchsia-500/10 inline-block px-2 py-1 rounded border border-fuchsia-500/20">
+                                         {phonePart}
+                                     </div>
+                                  </td>
+                                  <td className="p-4">
+                                     <div className="text-gray-300 font-medium text-[11px] bg-black/30 p-2.5 rounded border border-gray-700/50 line-clamp-2" title={messagePart}>
+                                         {messagePart}
+                                     </div>
+                                  </td>
+                                  <td className="p-4">
+                                      {advanceStatus === 'failed' ? (
+                                          <div className="flex justify-center">
+                                              <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                                                 ❌ Failed to Send
+                                              </span>
                                           </div>
-                                          <div className={`w-4 md:w-8 h-0.5 rounded-full ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'bg-green-500' : 'bg-gray-700'}`}></div>
-                                          
-                                          {/* Delivered Step */}
-                                          <div className={`flex flex-col items-center justify-center transition-all ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'text-green-400' : 'text-gray-600'}`}>
-                                             <span className={`text-[12px] md:text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full border ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'bg-green-500/10 border-green-500/30' : 'bg-gray-800 border-gray-700'}`}>✓✓</span>
-                                             <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">DELIVERED</span>
+                                      ) : (
+                                          <div className="flex items-center justify-center gap-1.5 md:gap-3">
+                                              <div className="flex flex-col items-center justify-center text-green-400">
+                                                 <span className="text-[12px] md:text-sm font-bold bg-green-500/10 w-6 h-6 flex items-center justify-center rounded-full border border-green-500/30">✓</span>
+                                                 <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">SENT</span>
+                                              </div>
+                                              <div className={`w-4 md:w-8 h-0.5 rounded-full ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'bg-green-500' : 'bg-gray-700'}`}></div>
+                                              
+                                              <div className={`flex flex-col items-center justify-center transition-all ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'text-green-400' : 'text-gray-600'}`}>
+                                                 <span className={`text-[12px] md:text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full border ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'bg-green-500/10 border-green-500/30' : 'bg-gray-800 border-gray-700'}`}>✓✓</span>
+                                                 <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">DELIVERED</span>
+                                              </div>
+                                              <div className={`w-4 md:w-8 h-0.5 rounded-full ${advanceStatus === 'read' ? 'bg-blue-500' : 'bg-gray-700'}`}></div>
+                                              
+                                              <div className={`flex flex-col items-center justify-center transition-all ${advanceStatus === 'read' ? 'text-blue-400' : 'text-gray-600'}`}>
+                                                 <span className={`text-[12px] md:text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full border ${advanceStatus === 'read' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-gray-800 border-gray-700'}`}>✓✓</span>
+                                                 <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">READ</span>
+                                              </div>
                                           </div>
-                                          <div className={`w-4 md:w-8 h-0.5 rounded-full ${advanceStatus === 'read' ? 'bg-blue-500' : 'bg-gray-700'}`}></div>
-                                          
-                                          {/* Read Step */}
-                                          <div className={`flex flex-col items-center justify-center transition-all ${advanceStatus === 'read' ? 'text-blue-400' : 'text-gray-600'}`}>
-                                             <span className={`text-[12px] md:text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full border ${advanceStatus === 'read' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-gray-800 border-gray-700'}`}>✓✓</span>
-                                             <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">READ</span>
-                                          </div>
-                                      </div>
-                                  )}
-                              </td>
-                              <td className="p-4 text-right">
-                                 <div className="text-gray-400 font-mono text-[11px] bg-gray-800/50 inline-block px-2 py-1 rounded">
-                                     {new Date(log.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
-                                 </div>
-                              </td>
-                           </tr>
-                           );
-                        })}
-                     </tbody>
-                  </table>
-                  <div className="p-3 text-center text-[10px] md:text-xs text-blue-400 bg-blue-500/10 border-t border-gray-700">
-                     Showing latest 50 records. Note: Full 'Delivered' and 'Read' tracking will automatically activate once the Backend Webhook is installed.
+                                      )}
+                                  </td>
+                                  <td className="p-4 text-right">
+                                     <div className="text-gray-400 font-mono text-[11px] bg-gray-800/50 inline-block px-2 py-1 rounded">
+                                         {new Date(log.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                     </div>
+                                  </td>
+                               </tr>
+                               );
+                            })}
+                         </tbody>
+                      </table>
+                  </div>
+                  
+                  {/* --- PAGINATION CONTROLS --- */}
+                  <div className="p-3 bg-gray-800 border-t border-gray-700 flex justify-between items-center text-sm">
+                      <button 
+                         disabled={historyPage <= 1} 
+                         onClick={() => setHistoryPage(p => p - 1)}
+                         className={`px-4 py-2 rounded font-bold text-xs ${historyPage <= 1 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-fuchsia-600 text-white hover:bg-fuchsia-500'}`}
+                      >
+                         ◀ Previous 50
+                      </button>
+                      <span className="text-gray-400 font-bold text-xs">
+                         Page {historyPage} of {historyTotalPages}
+                      </span>
+                      <button 
+                         disabled={historyPage >= historyTotalPages} 
+                         onClick={() => setHistoryPage(p => p + 1)}
+                         className={`px-4 py-2 rounded font-bold text-xs ${historyPage >= historyTotalPages ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-fuchsia-600 text-white hover:bg-fuchsia-500'}`}
+                      >
+                         Next 50 ▶
+                      </button>
                   </div>
                </div>
             )}
