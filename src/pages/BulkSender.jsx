@@ -28,6 +28,7 @@ const BulkSender = () => {
   const [showSticker, setShowSticker] = useState(false);
   const [activeTab, setActiveTab] = useState('name');
 
+  // 1. Name Tag Config
   const [nameText, setNameText] = useState("{{Name}}");
   const [nameFont, setNameFont] = useState("Arial, sans-serif");
   const [nameSize, setNameSize] = useState(32);
@@ -36,6 +37,7 @@ const BulkSender = () => {
   const [nameWeight, setNameWeight] = useState("bold");
   const [nameStyle, setNameStyle] = useState("normal");
 
+  // 2. Sub-Text Config
   const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
   const [subFont, setSubFont] = useState("Arial, sans-serif");
   const [subSize, setSubSize] = useState(14);
@@ -44,16 +46,19 @@ const BulkSender = () => {
   const [subWeight, setSubWeight] = useState("normal");
   const [subStyle, setSubStyle] = useState("normal");
 
+  // 3. Box Config
   const [boxBg, setBoxBg] = useState("rgba(0, 0, 0, 0.5)");
   const [boxBorder, setBoxBorder] = useState("none");
   const [boxRadius, setBoxRadius] = useState(12);
   const [boxPadding, setBoxPadding] = useState(16);
   
+  // Placement
   const [stickerWidth, setStickerWidth] = useState(250); 
   const [stickerPos, setStickerPos] = useState({ x: 50, y: 70 }); 
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   
+  // --- Campaign States ---
   const [campaignState, setCampaignState] = useState('idle'); 
   const [logs, setLogs] = useState([]);
   const [progress, setProgress] = useState(0);
@@ -68,6 +73,7 @@ const BulkSender = () => {
   const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
   const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
+  // FONT OPTIONS
   const fontOptions = [
     { label: "Modern (Arial)", value: "Arial, sans-serif" },
     { label: "Classic (Times)", value: "'Times New Roman', serif" },
@@ -104,6 +110,7 @@ const BulkSender = () => {
     return border;
   };
 
+  // --- AUTO RESUME LOGIC ---
   useEffect(() => {
     const savedState = localStorage.getItem('reachify_campaign_backup');
     if (savedState) {
@@ -133,6 +140,7 @@ const BulkSender = () => {
     }
   }, [contacts, logs, stats, progress, campaignState]);
 
+  // --- CONNECTION CHECKER ---
   useEffect(() => {
     let interval;
     const checkRealConnection = async () => {
@@ -164,6 +172,7 @@ const BulkSender = () => {
     return () => clearInterval(interval);
   }, [user.email]);
 
+  // --- FETCH SENT HISTORY (ADVANCED) ---
   const fetchSentHistory = async (page = historyPage, dateStr = historyDateFilter) => {
     setIsLoadingHistory(true);
     try {
@@ -226,10 +235,10 @@ const BulkSender = () => {
           const keys = Object.keys(row);
           keys.forEach(key => {
             const lowerKey = key.toLowerCase();
-            if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp')) {
+            if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp') || lowerKey.includes('मोबा') || lowerKey.includes('फोन') || lowerKey.includes('नंबर')) {
               if (!phoneVal && row[key]) phoneVal = String(row[key]).trim();
             }
-            if (lowerKey.includes('name') || lowerKey.includes('customer') || lowerKey.includes('नाम')) {
+            if (lowerKey.includes('name') || lowerKey.includes('customer') || lowerKey.includes('नाम') || lowerKey.includes('सदस्य') || lowerKey.includes('पार्षद')) {
               if (nameVal === 'Guest' && row[key]) nameVal = String(row[key]).trim();
             }
           });
@@ -435,9 +444,7 @@ const BulkSender = () => {
     let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
     const BATCH_PAUSE_MS = 30000;                  
 
-    let rawBase64MediaData = null; 
-    let mimeType = null; 
-    let originalFileName = null;
+    let rawBase64MediaData = null; let mimeType = null; let originalFileName = null;
 
     if (media) {
        try {
@@ -465,34 +472,24 @@ const BulkSender = () => {
       let isMessageSuccessful = false; 
 
       try {
-        let finalMediaToSend = rawBase64MediaData;
-        let finalMimeType = mimeType;
-        let finalFileName = originalFileName;
-
-        // 🔥 FIX 1: Strict Media Conversion to avoid API Rejections
+        let res; let finalMediaToSend = rawBase64MediaData;
+        
+        // 🔥 CRITICAL FIX: FORCE MEDIA TYPE TO JPEG IF STICKER APPLIED 🔥
         if (showSticker && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
-            finalMimeType = 'image/jpeg';
-            finalFileName = 'invite.jpg';
+            mimeType = 'image/jpeg'; 
+            originalFileName = 'reachify_export.jpg';
         }
 
-        let res;
         if (connectionMode === 'web') {
            res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ target: contact.phone, text: personalizedMsg, isGroup: false, mediaBase64: finalMediaToSend, mediaType: finalMimeType, fileName: finalFileName })
+             body: JSON.stringify({ target: contact.phone, text: personalizedMsg, isGroup: false, mediaBase64: finalMediaToSend, mediaType: mimeType, fileName: originalFileName })
            });
         } else {
            const payload = {
-             email: user?.email || 'demo@reachify.com', 
-             phone: contact.phone, 
-             message: personalizedMsg, 
-             media_type: finalMimeType || 'text',
-             media_base64: finalMediaToSend, 
-             fileName: finalFileName, 
-             provider: waProvider, 
-             instance_id: waInstanceId, 
-             access_token: waToken
+             email: user?.email || 'demo@reachify.com', phone: contact.phone, message: personalizedMsg, media_type: mimeType || 'text',
+             media_base64: finalMediaToSend, fileName: originalFileName, provider: waProvider, instance_id: waInstanceId, access_token: waToken
            };
            res = await fetch(`${API_URL}/send-message`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
@@ -567,6 +564,7 @@ const BulkSender = () => {
 
       {mainTab === 'send' ? (
       <>
+          {/* ... [SEND TAB CODE EXACTLY THE SAME AS BEFORE - Unchanged to preserve all features] ... */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
