@@ -191,14 +191,12 @@ const BulkSender = () => {
     setIsLoadingHistory(false);
   };
 
-  // Trigger fetch when Tab or Page changes
   useEffect(() => {
       if (mainTab === 'history') fetchSentHistory(historyPage, historyDateFilter);
   }, [mainTab, historyPage]);
 
-  // Search by Date Button
   const handleDateSearch = () => {
-      setHistoryPage(1); // Reset to page 1 on new search
+      setHistoryPage(1); 
       fetchSentHistory(1, historyDateFilter);
   };
 
@@ -436,13 +434,15 @@ const BulkSender = () => {
 
     setCampaignState('running'); pauseRef.current = false; stopRef.current = false;
     
-    if (progress === 100 || campaignState === 'completed' || campaignState === 'idle') {
-        setLogs([]); setProgress(0); setStats({ sent: 0, failed: 0, total: contacts.length });
-    }
-    
     let currentSent = stats.sent || 0; 
     let currentFailed = stats.failed || 0; 
-    let messagesProcessed = 0;                      
+
+    if (progress === 100 || campaignState === 'completed' || campaignState === 'idle') {
+        setLogs([]); setProgress(0); setStats({ sent: 0, failed: 0, total: contacts.length });
+        currentSent = 0; currentFailed = 0;
+    }
+    
+    let messagesProcessed = 0;                       
     let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
     const BATCH_PAUSE_MS = 30000;                  
 
@@ -469,8 +469,9 @@ const BulkSender = () => {
       if (stopRef.current) break;
 
       const contact = contacts[i];
+      const cleanPhone = String(contact.phone).replace(/\D/g, '');
       const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
-      setLogs(prev => [{ id: i + 1, to: contact.phone, status: "Sending...", name: contact.name }, ...prev]);
+      setLogs(prev => [{ id: i + 1, to: cleanPhone, status: "Sending...", name: contact.name }, ...prev]);
       let isMessageSuccessful = false; 
 
       try {
@@ -478,16 +479,17 @@ const BulkSender = () => {
         
         if (showSticker && mimeType && mimeType.startsWith('image/')) {
             finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
+            mimeType = 'image/jpeg'; // Required to tell backend it is correctly processed
         }
 
         if (connectionMode === 'web') {
            res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
              method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ target: contact.phone, text: personalizedMsg, isGroup: false, mediaBase64: finalMediaToSend, mediaType: mimeType, fileName: originalFileName })
+             body: JSON.stringify({ target: cleanPhone, text: personalizedMsg, isGroup: false, mediaBase64: finalMediaToSend, mediaType: mimeType, fileName: originalFileName })
            });
         } else {
            const payload = {
-             email: user?.email || 'demo@reachify.com', phone: contact.phone, message: personalizedMsg, media_type: media?.type || 'text',
+             email: user?.email || 'demo@reachify.com', phone: cleanPhone, message: personalizedMsg, media_type: mimeType || 'text',
              media_base64: finalMediaToSend, fileName: originalFileName, provider: waProvider, instance_id: waInstanceId, access_token: waToken
            };
            res = await fetch(`${API_URL}/send-message`, {
@@ -495,7 +497,13 @@ const BulkSender = () => {
            });
         }
 
-        const data = await res.json(); 
+        const responseText = await res.text();
+        let data = {};
+        try {
+            data = JSON.parse(responseText);
+        } catch(e) {
+            data = { error: "Server Parse Error (Check Backend)" };
+        }
 
         if (res.ok && data.success !== false) {
           currentSent++; isMessageSuccessful = true; 
@@ -563,7 +571,6 @@ const BulkSender = () => {
 
       {mainTab === 'send' ? (
       <>
-          {/* ... [SEND TAB CODE EXACTLY THE SAME AS BEFORE - Unchanged to preserve all features] ... */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
@@ -817,52 +824,52 @@ const BulkSender = () => {
                <div className="flex-1 flex items-center justify-center p-2 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5 overflow-hidden" style={{touchAction: 'none'}} onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
                  {media ? (
                    <div ref={imageContainerRef} className={`relative max-w-full max-h-full shadow-2xl rounded-lg select-none flex items-center justify-center ${!mediaPreview ? 'border-2 border-dashed border-gray-600 p-8' : 'border-4 border-gray-800'}`}>
-                     {mediaPreview ? ( 
-                        <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[50vh] lg:max-h-[65vh] object-contain pointer-events-none" /> 
-                     ) : ( 
-                        <div className="w-48 h-48 md:w-64 md:h-64 bg-gray-800 flex items-center justify-center text-gray-300 flex-col px-4 md:px-6 text-center rounded-xl">
-                           <span className="text-4xl md:text-6xl mb-3 md:mb-4">{media.type.startsWith('video') ? '🎥' : media.type.startsWith('audio') ? '🎵' : media.type.includes('pdf') ? '📕' : media.name.endsWith('.apk') ? '🤖' : '📁'}</span>
-                           <span className="font-bold text-[10px] md:text-sm truncate w-full">{media.name}</span>
-                           <span className="text-[8px] md:text-[10px] text-fuchsia-400 mt-3 md:mt-4">File ready to send (Universal)</span>
-                        </div> 
-                     )}
-                     
-                     {showSticker && mediaPreview && (
-                       <div 
-                         onMouseDown={handleDragStart} onTouchStart={handleDragStart} 
-                         style={{ 
-                            top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', 
-                            background: getBgStyle(boxBg), border: getBorderStyle(boxBorder), borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
-                            backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
-                         }} 
-                         className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
-                       >
-                         <div 
-                            style={{ 
-                               color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
-                               WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
-                               textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
-                               lineHeight: '1.2'
-                            }}
-                            className="text-center w-full break-words"
-                         >
-                            {nameText}
-                         </div>
-                         {subText && ( 
-                            <div 
-                               style={{ 
-                                  color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
-                                  WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
-                                  marginTop: '4px', lineHeight: '1.2'
-                               }}
-                               className="text-center w-full break-words opacity-90"
-                            >
-                               {subText}
-                            </div> 
-                         )}
-                         <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-8 h-8 md:w-6 md:h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30"><span className="text-[12px] md:text-[10px] text-fuchsia-600">⤡</span></div>
-                       </div>
-                     )}
+                      {mediaPreview ? ( 
+                         <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[50vh] lg:max-h-[65vh] object-contain pointer-events-none" /> 
+                      ) : ( 
+                         <div className="w-48 h-48 md:w-64 md:h-64 bg-gray-800 flex items-center justify-center text-gray-300 flex-col px-4 md:px-6 text-center rounded-xl">
+                            <span className="text-4xl md:text-6xl mb-3 md:mb-4">{media.type.startsWith('video') ? '🎥' : media.type.startsWith('audio') ? '🎵' : media.type.includes('pdf') ? '📕' : media.name.endsWith('.apk') ? '🤖' : '📁'}</span>
+                            <span className="font-bold text-[10px] md:text-sm truncate w-full">{media.name}</span>
+                            <span className="text-[8px] md:text-[10px] text-fuchsia-400 mt-3 md:mt-4">File ready to send (Universal)</span>
+                         </div> 
+                      )}
+                      
+                      {showSticker && mediaPreview && (
+                        <div 
+                          onMouseDown={handleDragStart} onTouchStart={handleDragStart} 
+                          style={{ 
+                             top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', 
+                             background: getBgStyle(boxBg), border: getBorderStyle(boxBorder), borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
+                             backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
+                           }} 
+                          className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
+                        >
+                          <div 
+                             style={{ 
+                                color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
+                                WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
+                                textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
+                                lineHeight: '1.2'
+                             }}
+                             className="text-center w-full break-words"
+                          >
+                             {nameText}
+                          </div>
+                          {subText && ( 
+                             <div 
+                                style={{ 
+                                   color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
+                                   WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
+                                   marginTop: '4px', lineHeight: '1.2'
+                                }}
+                                className="text-center w-full break-words opacity-90"
+                             >
+                                {subText}
+                             </div> 
+                          )}
+                          <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-8 h-8 md:w-6 md:h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30"><span className="text-[12px] md:text-[10px] text-fuchsia-600">⤡</span></div>
+                        </div>
+                      )}
                    </div>
                  ) : ( <div className="text-gray-500 text-center flex flex-col items-center"><p className="text-4xl md:text-5xl mb-3 md:mb-4 opacity-50">📤</p><p className="font-bold text-xs md:text-base">Canvas is Empty</p><p className="text-[9px] md:text-xs mt-1 md:mt-2">Upload any file or image</p></div> )}
                </div>
@@ -931,7 +938,7 @@ const BulkSender = () => {
                          </thead>
                          <tbody className="text-sm">
                             {historyLogs.map((log, i) => {
-                               // Clean Parser for Old & New Logs (Removes Fake Text)
+                               // Clean Parser for Old & New Logs
                                let phonePart = log.action;
                                let messagePart = "Media / Template Message"; 
                                
@@ -969,7 +976,7 @@ const BulkSender = () => {
                                       {advanceStatus === 'failed' ? (
                                           <div className="flex justify-center">
                                               <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
-                                                 ❌ Failed to Send
+                                                  ❌ Failed to Send
                                               </span>
                                           </div>
                                       ) : (
