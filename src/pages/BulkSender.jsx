@@ -2,796 +2,1040 @@ import React, { useState, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 
 const BulkSender = () => {
-  // --- Core States ---
-  const [contacts, setContacts] = useState([]);
-  const [showContactPreview, setShowContactPreview] = useState(false);
-  const [countryCode, setCountryCode] = useState('91'); 
-  const [message, setMessage] = useState("Hello {{Name}}, here is your file!");
-  const [file, setFile] = useState(null); 
-  const [media, setMedia] = useState(null); 
-  const [mediaPreview, setMediaPreview] = useState(null);
-  
-  const [waStatus, setWaStatus] = useState('checking'); 
-  const [connectionMode, setConnectionMode] = useState('api');
-  
-  // --- Advanced Studio States (Merged from Personalized Sender) ---
-  const [showSticker, setShowSticker] = useState(false);
-  const [activeTab, setActiveTab] = useState('name');
+  // --- UI Tabs State ---
+  const [mainTab, setMainTab] = useState('send'); 
+  const [historyLogs, setHistoryLogs] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  
+  // --- Advanced History States (Pagination & Date) ---
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [historyDateFilter, setHistoryDateFilter] = useState('');
 
-  // 1. Name Tag Config
-  const [nameText, setNameText] = useState("{{Name}}");
-  const [nameFont, setNameFont] = useState("Arial, sans-serif");
-  const [nameSize, setNameSize] = useState(32);
-  const [nameColor, setNameColor] = useState("#ffffff");
-  const [nameOutline, setNameOutline] = useState("none");
-  const [nameWeight, setNameWeight] = useState("bold");
-  const [nameStyle, setNameStyle] = useState("normal");
+  // --- Core States ---
+  const [contacts, setContacts] = useState([]);
+  const [showContactPreview, setShowContactPreview] = useState(false);
+  const [countryCode, setCountryCode] = useState('91'); 
+  const [message, setMessage] = useState("Hello {{Name}}, here is your file!");
+  const [file, setFile] = useState(null); 
+  const [media, setMedia] = useState(null); 
+  const [mediaPreview, setMediaPreview] = useState(null);
+  
+  const [waStatus, setWaStatus] = useState('checking'); 
+  const [connectionMode, setConnectionMode] = useState('api');
+  
+  // --- Advanced Studio States ---
+  const [showSticker, setShowSticker] = useState(false);
+  const [activeTab, setActiveTab] = useState('name');
 
-  // 2. Sub-Text Config
-  const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
-  const [subFont, setSubFont] = useState("Arial, sans-serif");
-  const [subSize, setSubSize] = useState(14);
-  const [subColor, setSubColor] = useState("#fbcfe8"); 
-  const [subOutline, setSubOutline] = useState("none");
-  const [subWeight, setSubWeight] = useState("normal");
-  const [subStyle, setSubStyle] = useState("normal");
+  const [nameText, setNameText] = useState("{{Name}}");
+  const [nameFont, setNameFont] = useState("Arial, sans-serif");
+  const [nameSize, setNameSize] = useState(32);
+  const [nameColor, setNameColor] = useState("#ffffff");
+  const [nameOutline, setNameOutline] = useState("none");
+  const [nameWeight, setNameWeight] = useState("bold");
+  const [nameStyle, setNameStyle] = useState("normal");
 
-  // 3. Box Config
-  const [boxBg, setBoxBg] = useState("rgba(0, 0, 0, 0.5)");
-  const [boxBorder, setBoxBorder] = useState("none");
-  const [boxRadius, setBoxRadius] = useState(12);
-  const [boxPadding, setBoxPadding] = useState(16);
-  
-  // Placement
-  const [stickerWidth, setStickerWidth] = useState(250); 
-  const [stickerPos, setStickerPos] = useState({ x: 50, y: 70 }); 
-  const [isDragging, setIsDragging] = useState(false);
-  const [isResizing, setIsResizing] = useState(false);
-  
-  // --- Campaign States ---
-  const [campaignState, setCampaignState] = useState('idle'); 
-  const [logs, setLogs] = useState([]);
-  const [progress, setProgress] = useState(0);
-  const [stats, setStats] = useState({ sent: 0, failed: 0, total: 0 });
-  
-  const [delay, setDelay] = useState(10);
+  const [subText, setSubText] = useState("सपरिवार आमंत्रित हैं");
+  const [subFont, setSubFont] = useState("Arial, sans-serif");
+  const [subSize, setSubSize] = useState(14);
+  const [subColor, setSubColor] = useState("#fbcfe8"); 
+  const [subOutline, setSubOutline] = useState("none");
+  const [subWeight, setSubWeight] = useState("normal");
+  const [subStyle, setSubStyle] = useState("normal");
 
-  const pauseRef = useRef(false);
-  const stopRef = useRef(false);
-  const imageContainerRef = useRef(null);
-  
-  const API_URL = "https://reachify-api.selt-3232.workers.dev";
-  const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
-  const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
+  const [boxBg, setBoxBg] = useState("rgba(0, 0, 0, 0.5)");
+  const [boxBorder, setBoxBorder] = useState("none");
+  const [boxRadius, setBoxRadius] = useState(12);
+  const [boxPadding, setBoxPadding] = useState(16);
+  
+  const [stickerWidth, setStickerWidth] = useState(250); 
+  const [stickerPos, setStickerPos] = useState({ x: 50, y: 70 }); 
+  const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  
+  const [campaignState, setCampaignState] = useState('idle'); 
+  const [logs, setLogs] = useState([]);
+  const [progress, setProgress] = useState(0);
+  const [stats, setStats] = useState({ sent: 0, failed: 0, total: 0 });
+  const [delay, setDelay] = useState(10);
 
-  // FONT OPTIONS
-  const fontOptions = [
-    { label: "Modern (Arial)", value: "Arial, sans-serif" },
-    { label: "Classic (Times)", value: "'Times New Roman', serif" },
-    { label: "Typewriter", value: "'Courier New', monospace" },
-    { label: "Elegant (Georgia)", value: "Georgia, serif" },
-    { label: "Heavy (Impact)", value: "'Impact', sans-serif" },
-    { label: "Clean (Verdana)", value: "Verdana, sans-serif" },
-    { label: "Round (Comic Sans)", value: "'Comic Sans MS', cursive" },
-    { label: "Stylish Script", value: "'Brush Script MT', cursive" },
-    { label: "Devanagari (Mukta)", value: "'Mukta', sans-serif" },
-    { label: "Devanagari (Kalam)", value: "'Kalam', cursive" },
-    { label: "Devanagari (Poppins)", value: "'Poppins', sans-serif" }
-  ];
+  const pauseRef = useRef(false);
+  const stopRef = useRef(false);
+  const imageContainerRef = useRef(null);
+  
+  const API_URL = "https://reachify-api.selt-3232.workers.dev";
+  const WA_ENGINE_URL = "https://reachify-wa-engine.onrender.com"; 
+  const user = JSON.parse(localStorage.getItem('reachify_user')) || { email: 'demo@reachify.com' };
 
-  const outlineOptions = [
-    { label: "No Outline", value: "none" },
-    { label: "Black", value: "#000000" },
-    { label: "White", value: "#ffffff" },
-    { label: "Red", value: "#ef4444" },
-    { label: "Blue", value: "#3b82f6" },
-    { label: "Gold", value: "#fbbf24" },
-    { label: "Fuchsia", value: "#d946ef" }
-  ];
+  const fontOptions = [
+    { label: "Modern (Arial)", value: "Arial, sans-serif" },
+    { label: "Classic (Times)", value: "'Times New Roman', serif" },
+    { label: "Typewriter", value: "'Courier New', monospace" },
+    { label: "Elegant (Georgia)", value: "Georgia, serif" },
+    { label: "Heavy (Impact)", value: "'Impact', sans-serif" },
+    { label: "Clean (Verdana)", value: "Verdana, sans-serif" },
+    { label: "Round (Comic Sans)", value: "'Comic Sans MS', cursive" },
+    { label: "Stylish Script", value: "'Brush Script MT', cursive" },
+    { label: "Devanagari (Mukta)", value: "'Mukta', sans-serif" },
+    { label: "Devanagari (Kalam)", value: "'Kalam', cursive" },
+    { label: "Devanagari (Poppins)", value: "'Poppins', sans-serif" }
+  ];
 
-  // Helper for VIP Gradients in UI
-  const getBgStyle = (bg) => {
-    if (bg === 'gold_gradient') return 'linear-gradient(135deg, #bf953f, #fcf6ba, #b38728)';
-    if (bg === 'silver_gradient') return 'linear-gradient(135deg, #8e9eab, #eef2f3, #8e9eab)';
-    return bg;
-  };
+  const outlineOptions = [
+    { label: "No Outline", value: "none" },
+    { label: "Black", value: "#000000" },
+    { label: "White", value: "#ffffff" },
+    { label: "Red", value: "#ef4444" },
+    { label: "Blue", value: "#3b82f6" },
+    { label: "Gold", value: "#fbbf24" },
+    { label: "Fuchsia", value: "#d946ef" }
+  ];
 
-  const getBorderStyle = (border) => {
-    if (border === 'gold_gradient') return '3px solid #fcf6ba';
-    if (border === 'silver_gradient') return '3px solid #eef2f3';
-    return border;
-  };
+  const getBgStyle = (bg) => {
+    if (bg === 'gold_gradient') return 'linear-gradient(135deg, #bf953f, #fcf6ba, #b38728)';
+    if (bg === 'silver_gradient') return 'linear-gradient(135deg, #8e9eab, #eef2f3, #8e9eab)';
+    return bg;
+  };
 
-  useEffect(() => {
-    let interval;
-    const checkRealConnection = async () => {
-      if (!user.email || user.email === 'demo@reachify.com') return setWaStatus('disconnected');
-      const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
-      const mode = savedSettings.wa_connection_mode || 'api';
-      setConnectionMode(mode);
+  const getBorderStyle = (border) => {
+    if (border === 'gold_gradient') return '3px solid #fcf6ba';
+    if (border === 'silver_gradient') return '3px solid #eef2f3';
+    return border;
+  };
 
-      try {
-        if (mode === 'web') {
-           const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
-           const data = await res.json();
-           if (data.status === 'connected') setWaStatus('connected');
-           else setWaStatus('disconnected');
-        } else {
-           const res = await fetch(`${API_URL}/get-settings`, {
-             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
-           });
-           if (savedSettings.wa_access_token) setWaStatus('connected');
-           else setWaStatus('disconnected');
-        }
-      } catch (err) { setWaStatus('sleeping'); }
-    };
-    checkRealConnection();
-    interval = setInterval(() => {
-        const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
-        if (savedSettings.wa_connection_mode === 'web') fetch(`${WA_ENGINE_URL}/`).catch(() => {}); 
-    }, 45000); 
-    return () => clearInterval(interval);
-  }, [user.email]);
+  useEffect(() => {
+    const savedState = localStorage.getItem('reachify_campaign_backup');
+    if (savedState) {
+        try {
+            const parsed = JSON.parse(savedState);
+            if (parsed.contacts && parsed.contacts.length > 0) setContacts(parsed.contacts);
+            if (parsed.logs) setLogs(parsed.logs);
+            if (parsed.stats) setStats(parsed.stats);
+            if (parsed.progress) setProgress(parsed.progress);
+            if (parsed.campaignState && parsed.campaignState !== 'idle') {
+                if (parsed.campaignState === 'running') {
+                    setCampaignState('paused'); 
+                    pauseRef.current = true;
+                } else {
+                    setCampaignState(parsed.campaignState);
+                }
+            }
+        } catch(e){}
+    }
+  }, []);
 
-  const handleMediaUpload = (e) => {
-    const uploadedFile = e.target.files[0];
-    if (uploadedFile) {
-      setMedia(uploadedFile);
-      if (uploadedFile.type.startsWith('image/')) {
-        setMediaPreview(URL.createObjectURL(uploadedFile));
-        setShowSticker(true);
-      } else {
-        setMediaPreview(null);
-        setShowSticker(false);
-      }
-    }
-  };
+  useEffect(() => {
+    if (contacts.length > 0 || logs.length > 0) {
+        localStorage.setItem('reachify_campaign_backup', JSON.stringify({
+            contacts, logs, stats, progress, campaignState
+        }));
+    }
+  }, [contacts, logs, stats, progress, campaignState]);
 
-  const clearMedia = () => { setMedia(null); setMediaPreview(null); setShowSticker(false); };
+  useEffect(() => {
+    let interval;
+    const checkRealConnection = async () => {
+      if (!user.email || user.email === 'demo@reachify.com') return setWaStatus('disconnected');
+      const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+      const mode = savedSettings.wa_connection_mode || 'api';
+      setConnectionMode(mode);
 
-  const handleFileUpload = (e) => {
-    const uploadedFile = e.target.files[0];
-    if (!uploadedFile) return;
-    setFile(uploadedFile);
+      try {
+        if (mode === 'web') {
+           const res = await fetch(`${WA_ENGINE_URL}/api/wa-status`);
+           const data = await res.json();
+           if (data.status === 'connected') setWaStatus('connected');
+           else setWaStatus('disconnected');
+        } else {
+           const res = await fetch(`${API_URL}/get-settings`, {
+             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email })
+           });
+           if (savedSettings.wa_access_token) setWaStatus('connected');
+           else setWaStatus('disconnected');
+        }
+      } catch (err) { setWaStatus('sleeping'); }
+    };
+    checkRealConnection();
+    interval = setInterval(() => {
+        const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+        if (savedSettings.wa_connection_mode === 'web') fetch(`${WA_ENGINE_URL}/`).catch(() => {}); 
+    }, 45000); 
+    return () => clearInterval(interval);
+  }, [user.email]);
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const bstr = evt.target.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { defval: "" }); 
-        if (data.length === 0) return alert("❌ Your Excel file is empty!");
+  const fetchSentHistory = async (page = historyPage, dateStr = historyDateFilter) => {
+    setIsLoadingHistory(true);
+    try {
+        const res = await fetch(`${API_URL}/dashboard-stats`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: user.email, page: page, limit: 50, date: dateStr })
+        });
+        const data = await res.json();
+        if (data.recent) {
+            setHistoryLogs(data.recent);
+            setHistoryTotalPages(data.totalPages || 1);
+        }
+    } catch (e) {
+        console.error("History Error", e);
+    }
+    setIsLoadingHistory(false);
+  };
 
-        const formattedContacts = data.map((row) => {
-          let phoneVal = ''; let nameVal = 'Guest';
-          const keys = Object.keys(row);
-          keys.forEach(key => {
-            const lowerKey = key.toLowerCase();
-            if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp') || lowerKey.includes('मोबा') || lowerKey.includes('फोन') || lowerKey.includes('नंबर')) {
-              if (!phoneVal && row[key]) phoneVal = String(row[key]).trim();
-            }
-            if (lowerKey.includes('name') || lowerKey.includes('customer') || lowerKey.includes('नाम') || lowerKey.includes('सदस्य') || lowerKey.includes('पार्षद')) {
-              if (nameVal === 'Guest' && row[key]) nameVal = String(row[key]).trim();
-            }
-          });
-          if (!phoneVal) {
-             keys.forEach(key => {
-                const val = String(row[key]).trim();
-                const numbersOnly = val.replace(/\D/g, '');
-                if (numbersOnly.length >= 9 && numbersOnly.length <= 14 && !phoneVal) phoneVal = val;
-                else if (nameVal === 'Guest' && val.length > 2 && isNaN(val)) nameVal = val;
-             });
-          }
-          return { phone: phoneVal, name: nameVal };
-        }).filter(c => c.phone && c.phone.length > 5); 
+  useEffect(() => {
+      if (mainTab === 'history') fetchSentHistory(historyPage, historyDateFilter);
+  }, [mainTab, historyPage]);
 
-        if (formattedContacts.length === 0) alert("❌ Could not extract any numbers!");
-        else {
-           setContacts(formattedContacts);
-           setStats({ sent: 0, failed: 0, total: formattedContacts.length });
-           setShowContactPreview(true);
-        }
-      } catch (error) { alert("❌ Error reading the Excel file."); }
-    };
-    reader.readAsBinaryString(uploadedFile);
-  };
+  const handleDateSearch = () => {
+      setHistoryPage(1); 
+      fetchSentHistory(1, historyDateFilter);
+  };
 
-  const clearContacts = () => { setContacts([]); setFile(null); setShowContactPreview(false); setStats({ sent: 0, failed: 0, total: 0 }); };
+  const handleMediaUpload = (e) => {
+    const uploadedFile = e.target.files[0];
+    if (uploadedFile) {
+      setMedia(uploadedFile);
+      if (uploadedFile.type.startsWith('image/')) {
+        setMediaPreview(URL.createObjectURL(uploadedFile));
+        setShowSticker(true);
+      } else {
+        setMediaPreview(null);
+        setShowSticker(false);
+      }
+    }
+  };
 
-  const applyCountryCode = () => {
-    if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
-    const code = countryCode.replace('+', '').trim();
-    const updatedContacts = contacts.map(c => {
-      let phone = String(c.phone).replace(/\D/g, ''); 
-      if (phone.length === 10) phone = code + phone;
-      else if (phone.length === 11 && phone.startsWith('0')) phone = code + phone.substring(1);
-      return { ...c, phone: phone };
-    });
-    setContacts(updatedContacts);
-    alert(`✅ Success! Country Code (+${code}) added to all numbers.`);
-  };
+  const clearMedia = () => { setMedia(null); setMediaPreview(null); setShowSticker(false); };
 
-  const handleDragStart = (e) => { if(!isResizing) setIsDragging(true); };
-  const handleResizeStart = (e) => { e.stopPropagation(); setIsResizing(true); };
-  const handleMouseUp = () => { setIsDragging(false); setIsResizing(false); };
+  const handleFileUpload = (e) => {
+    const uploadedFile = e.target.files[0];
+    if (!uploadedFile) return;
+    setFile(uploadedFile);
 
-  const handleMouseMove = (e) => {
-    if ((!isDragging && !isResizing) || !imageContainerRef.current) return;
-    if(e.touches && e.cancelable) e.preventDefault(); 
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: "" }); 
+        if (data.length === 0) return alert("❌ Your Excel file is empty!");
 
-    const rect = imageContainerRef.current.getBoundingClientRect();
-    const clientX = e.clientX || e.touches?.[0].clientX;
-    const clientY = e.clientY || e.touches?.[0].clientY;
+        const formattedContacts = data.map((row) => {
+          let phoneVal = ''; let nameVal = 'Guest';
+          const keys = Object.keys(row);
+          keys.forEach(key => {
+            const lowerKey = key.toLowerCase();
+            if (lowerKey.includes('phone') || lowerKey.includes('mob') || lowerKey.includes('num') || lowerKey.includes('contact') || lowerKey.includes('whatsapp')) {
+              if (!phoneVal && row[key]) phoneVal = String(row[key]).trim();
+            }
+            if (lowerKey.includes('name') || lowerKey.includes('customer') || lowerKey.includes('नाम')) {
+              if (nameVal === 'Guest' && row[key]) nameVal = String(row[key]).trim();
+            }
+          });
+          if (!phoneVal) {
+             keys.forEach(key => {
+                const val = String(row[key]).trim();
+                const numbersOnly = val.replace(/\D/g, '');
+                if (numbersOnly.length >= 9 && numbersOnly.length <= 14 && !phoneVal) phoneVal = val;
+                else if (nameVal === 'Guest' && val.length > 2 && isNaN(val)) nameVal = val;
+             });
+          }
+          return { phone: phoneVal, name: nameVal };
+        }).filter(c => c.phone && c.phone.length > 5); 
 
-    if (isDragging) {
-      let x = ((clientX - rect.left) / rect.width) * 100;
-      let y = ((clientY - rect.top) / rect.height) * 100;
-      setStickerPos({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
-    } else if (isResizing) {
-      const stickerCenterX = (stickerPos.x / 100) * rect.width + rect.left;
-      const newWidth = Math.abs(clientX - stickerCenterX) * 2;
-      setStickerWidth(Math.max(100, Math.min(newWidth, rect.width * 0.95))); 
-    }
-  };
+        if (formattedContacts.length === 0) alert("❌ Could not extract any numbers!");
+        else {
+           setContacts(formattedContacts);
+           setStats({ sent: 0, failed: 0, total: formattedContacts.length });
+           setShowContactPreview(true);
+        }
+      } catch (error) { alert("❌ Error reading the Excel file."); }
+    };
+    reader.readAsBinaryString(uploadedFile);
+  };
 
-  // 🔥 PERFECT PIXEL CANVAS ENGINE (FIXED SIZING & CENTERING) 🔥
-  const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = "Anonymous";
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
+  const clearContacts = () => { 
+      setContacts([]); setFile(null); setShowContactPreview(false); 
+      setStats({ sent: 0, failed: 0, total: 0 }); setLogs([]); setProgress(0); setCampaignState('idle');
+      localStorage.removeItem('reachify_campaign_backup');
+  };
 
-            ctx.drawImage(img, 0, 0, img.width, img.height);
-            
-            const containerWidth = imageContainerRef.current ? imageContainerRef.current.offsetWidth : 400;
-            const scale = img.width / containerWidth;
+  const applyCountryCode = () => {
+    if (!countryCode.trim()) return alert("❌ Please enter a country code (e.g., 91)");
+    const code = countryCode.replace('+', '').trim();
+    const updatedContacts = contacts.map(c => {
+      let phone = String(c.phone).replace(/\D/g, ''); 
+      if (phone.length === 10) phone = code + phone;
+      else if (phone.length === 11 && phone.startsWith('0')) phone = code + phone.substring(1);
+      return { ...c, phone: phone };
+    });
+    setContacts(updatedContacts);
+    alert(`✅ Success! Country Code (+${code}) added to all numbers.`);
+  };
 
-            const x = (stickerPos.x / 100) * img.width;
-            const y = (stickerPos.y / 100) * img.height;
+  const handleDragStart = (e) => { if(!isResizing) setIsDragging(true); };
+  const handleResizeStart = (e) => { e.stopPropagation(); setIsResizing(true); };
+  const handleMouseUp = () => { setIsDragging(false); setIsResizing(false); };
 
-            const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
-            const subTextStr = subText || '';
+  const handleMouseMove = (e) => {
+    if ((!isDragging && !isResizing) || !imageContainerRef.current) return;
+    if(e.touches && e.cancelable) e.preventDefault(); 
 
-            // Accurate Scaling (No more shrinking)
-            const dynamicNameSize = nameSize * scale;
-            const dynamicSubSize = subSize * scale;
-            const dynamicPadding = boxPadding * scale;
-            const dynamicRadius = boxRadius * scale;
+    const rect = imageContainerRef.current.getBoundingClientRect();
+    const clientX = e.clientX || e.touches?.[0].clientX;
+    const clientY = e.clientY || e.touches?.[0].clientY;
 
-            // Height Calculations
-            const lineH1 = dynamicNameSize * 1.2;
-            const lineH2 = subTextStr ? dynamicSubSize * 1.2 : 0;
-            const gap = subTextStr ? 4 * scale : 0;
+    if (isDragging) {
+      let x = ((clientX - rect.left) / rect.width) * 100;
+      let y = ((clientY - rect.top) / rect.height) * 100;
+      setStickerPos({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+    } else if (isResizing) {
+      const stickerCenterX = (stickerPos.x / 100) * rect.width + rect.left;
+      const newWidth = Math.abs(clientX - stickerCenterX) * 2;
+      setStickerWidth(Math.max(100, Math.min(newWidth, rect.width * 0.95))); 
+    }
+  };
 
-            // Width is forced to exact scaled width of the UI box
-            const boxW = stickerWidth * scale; 
-            const boxH = lineH1 + lineH2 + gap + (dynamicPadding * 2);
+  const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "Anonymous";
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
 
-            // 1. Draw Box Background
-            if (boxBg && boxBg !== 'transparent') {
-                if (boxBg === 'gold_gradient') {
-                    const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
-                    grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
-                    ctx.fillStyle = grad;
-                } else if (boxBg === 'silver_gradient') {
-                    const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
-                    grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
-                    ctx.fillStyle = grad;
-                } else {
-                    ctx.fillStyle = boxBg;
-                }
-                ctx.beginPath();
-                ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
-                ctx.fill();
-            }
+            ctx.drawImage(img, 0, 0, img.width, img.height);
+            
+            const containerWidth = imageContainerRef.current ? imageContainerRef.current.offsetWidth : 400;
+            const scale = img.width / containerWidth;
 
-            // 2. Draw Box Border
-            if (boxBorder && boxBorder !== 'none') {
-                 if (boxBorder === 'gold_gradient') {
-                    const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
-                    grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
-                    ctx.strokeStyle = grad;
-                 } else if (boxBorder === 'silver_gradient') {
-                    const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
-                    grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
-                    ctx.strokeStyle = grad;
-                 } else if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
-                 else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
-                 else if (boxBorder.includes('black')) ctx.strokeStyle = 'black';
-                 else ctx.strokeStyle = 'white';
+            const x = (stickerPos.x / 100) * img.width;
+            const y = (stickerPos.y / 100) * img.height;
 
-                 ctx.lineWidth = 3 * scale;
-                 if (boxBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
-                 ctx.beginPath();
-                 ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
-                 ctx.stroke();
-                 ctx.setLineDash([]);
-            }
+            const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
+            const subTextStr = subText || '';
 
-            // 3. Perfect Centered Text Alignment
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            
-            const contentTop = y - (lineH1 + gap + lineH2) / 2;
-            const nameY = contentTop + (lineH1 / 2);
+            const dynamicNameSize = nameSize * scale;
+            const dynamicSubSize = subSize * scale;
+            const dynamicPadding = boxPadding * scale;
+            const dynamicRadius = boxRadius * scale;
 
-            ctx.fillStyle = nameColor;
-            ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
-            if (nameOutline !== 'none') {
-                ctx.strokeStyle = nameOutline;
-                ctx.lineWidth = 3 * scale;
-                ctx.strokeText(textStr, x, nameY);
-            }
-            ctx.fillText(textStr, x, nameY);
+            const lineH1 = dynamicNameSize * 1.2;
+            const lineH2 = subTextStr ? dynamicSubSize * 1.2 : 0;
+            const gap = subTextStr ? 4 * scale : 0;
 
-            if (subTextStr) {
-                const subY = contentTop + lineH1 + gap + (lineH2 / 2);
-                ctx.fillStyle = subColor;
-                ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
-                if (subOutline !== 'none') {
-                   ctx.strokeStyle = subOutline;
-                   ctx.lineWidth = 2 * scale;
-                   ctx.strokeText(subTextStr, x, subY);
-                }
-                ctx.fillText(subTextStr, x, subY);
-            }
+            const boxW = stickerWidth * scale; 
+            const boxH = lineH1 + lineH2 + gap + (dynamicPadding * 2);
 
-            resolve(canvas.toDataURL('image/jpeg', 0.9));
-        };
-        img.onerror = () => resolve(rawBase64); 
-        img.src = rawBase64;
-    });
-  };
+            if (boxBg && boxBg !== 'transparent') {
+                if (boxBg === 'gold_gradient') {
+                    const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
+                    grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
+                    ctx.fillStyle = grad;
+                } else if (boxBg === 'silver_gradient') {
+                    const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
+                    grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
+                    ctx.fillStyle = grad;
+                } else {
+                    ctx.fillStyle = boxBg;
+                }
+                ctx.beginPath();
+                ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                ctx.fill();
+            }
 
-  const waitWithCheck = async (ms) => {
-    const start = Date.now();
-    while (Date.now() - start < ms) {
-      if (stopRef.current) throw new Error('Stopped');
-      if (pauseRef.current) {
-        await new Promise(r => setTimeout(r, 500));
-        continue;
-      }
-      await new Promise(r => setTimeout(r, 100));
-    }
-  };
+            if (boxBorder && boxBorder !== 'none') {
+                 if (boxBorder === 'gold_gradient') {
+                    const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
+                    grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
+                    ctx.strokeStyle = grad;
+                 } else if (boxBorder === 'silver_gradient') {
+                    const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
+                    grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
+                    ctx.strokeStyle = grad;
+                 } else if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
+                 else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
+                 else if (boxBorder.includes('black')) ctx.strokeStyle = 'black';
+                 else ctx.strokeStyle = 'white';
 
-  const startCampaign = async () => {
-    if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
-    
-    const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
-    const waProvider = savedSettings.wa_provider || 'meta';
-    const waInstanceId = savedSettings.wa_instance_id || '';
-    const waToken = savedSettings.wa_access_token || '';
+                 ctx.lineWidth = 3 * scale;
+                 if (boxBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
+                 ctx.beginPath();
+                 ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                 ctx.stroke();
+                 ctx.setLineDash([]);
+            }
 
-    setCampaignState('running'); pauseRef.current = false; stopRef.current = false;
-    setLogs([]); setProgress(0);
-    let currentSent = 0; let currentFailed = 0; let messagesProcessed = 0;                      
-    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
-    const BATCH_PAUSE_MS = 30000;                  
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const contentTop = y - (lineH1 + gap + lineH2) / 2;
+            const nameY = contentTop + (lineH1 / 2);
 
-    let rawBase64MediaData = null; let mimeType = null; let originalFileName = null;
+            ctx.fillStyle = nameColor;
+            ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
+            if (nameOutline !== 'none') {
+                ctx.strokeStyle = nameOutline;
+                ctx.lineWidth = 3 * scale;
+                ctx.strokeText(textStr, x, nameY);
+            }
+            ctx.fillText(textStr, x, nameY);
 
-    if (media) {
-       try {
-          const reader = new FileReader();
-          rawBase64MediaData = await new Promise((resolve, reject) => {
-              reader.onload = () => resolve(reader.result);
-              reader.onerror = error => reject(error);
-              reader.readAsDataURL(media); 
-          });
-          mimeType = media.type;
-          originalFileName = media.name;
-       } catch (e) {
-          alert("❌ Error processing the media file."); setCampaignState('stopped'); return;
-       }
-    }
+            if (subTextStr) {
+                const subY = contentTop + lineH1 + gap + (lineH2 / 2);
+                ctx.fillStyle = subColor;
+                ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
+                if (subOutline !== 'none') {
+                   ctx.strokeStyle = subOutline;
+                   ctx.lineWidth = 2 * scale;
+                   ctx.strokeText(subTextStr, x, subY);
+                }
+                ctx.fillText(subTextStr, x, subY);
+            }
 
-    for (let i = 0; i < contacts.length; i++) {
-      if (stopRef.current) { setCampaignState('stopped'); break; }
-      while (pauseRef.current) { await new Promise(resolve => setTimeout(resolve, 500)); if (stopRef.current) break; }
-      if (stopRef.current) break;
+            resolve(canvas.toDataURL('image/jpeg', 0.9));
+        };
+        img.onerror = () => resolve(rawBase64); 
+        img.src = rawBase64;
+    });
+  };
 
-      const contact = contacts[i];
-      const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
-      setLogs(prev => [{ id: i + 1, to: contact.phone, status: "Sending...", name: contact.name }, ...prev]);
-      let isMessageSuccessful = false; 
+  const waitWithCheck = async (ms) => {
+    const start = Date.now();
+    while (Date.now() - start < ms) {
+      if (stopRef.current) throw new Error('Stopped');
+      if (pauseRef.current) {
+        await new Promise(r => setTimeout(r, 500));
+        continue;
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+  };
 
-      try {
-        let res; let finalMediaToSend = rawBase64MediaData;
-        
-        if (showSticker && mimeType && mimeType.startsWith('image/')) {
-            finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
-        }
+  const startCampaign = async () => {
+    if (contacts.length === 0) return alert("❌ Please upload Contacts first!");
+    
+    const savedSettings = JSON.parse(localStorage.getItem('reachify_api_settings') || '{}');
+    const waProvider = savedSettings.wa_provider || 'meta';
+    const waInstanceId = savedSettings.wa_instance_id || '';
+    const waToken = savedSettings.wa_access_token || '';
 
-        if (connectionMode === 'web') {
-           res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
-             method: 'POST', headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ target: contact.phone, text: personalizedMsg, isGroup: false, mediaBase64: finalMediaToSend, mediaType: mimeType, fileName: originalFileName })
-           });
-        } else {
-           const payload = {
-             email: user?.email || 'demo@reachify.com', phone: contact.phone, message: personalizedMsg, media_type: media?.type || 'text',
-             media_base64: finalMediaToSend, fileName: originalFileName, provider: waProvider, instance_id: waInstanceId, access_token: waToken
-           };
-           res = await fetch(`${API_URL}/send-message`, {
-             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-           });
-        }
+    setCampaignState('running'); pauseRef.current = false; stopRef.current = false;
+    
+    if (progress === 100 || campaignState === 'completed' || campaignState === 'idle') {
+        setLogs([]); setProgress(0); setStats({ sent: 0, failed: 0, total: contacts.length });
+    }
+    
+    let currentSent = stats.sent || 0; 
+    let currentFailed = stats.failed || 0; 
+    let messagesProcessed = 0;                      
+    let nextPauseTarget = Math.floor(Math.random() * (30 - 20 + 1) + 20); 
+    const BATCH_PAUSE_MS = 30000;                  
 
-        const data = await res.json(); 
+    let rawBase64MediaData = null; 
+    let mimeType = null; 
+    let originalFileName = null;
 
-        if (res.ok && data.success !== false) {
-          currentSent++; isMessageSuccessful = true; 
-          setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
-        } else {
-          currentFailed++;
-          let errorMsg = data.error || "Failed to Send";
-          if (errorMsg.includes("Template") || errorMsg.includes("template")) errorMsg = "Template Required";
-          else errorMsg = errorMsg.substring(0, 35);
-          
-          setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
-          
-          if (data.error && data.error.includes("disconnected")) {
-              alert("❌ Server disconnected! Please go to Settings > Refresh QR Code or Check API Keys.");
-              setCampaignState('stopped'); break;
-          }
-        }
-      } catch (err) { currentFailed++; setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l)); }
-      
-      setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
-      setProgress(Math.round(((i + 1) / contacts.length) * 100));
+    if (media) {
+       try {
+          const reader = new FileReader();
+          rawBase64MediaData = await new Promise((resolve, reject) => {
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = error => reject(error);
+              reader.readAsDataURL(media); 
+          });
+          mimeType = media.type;
+          originalFileName = media.name;
+       } catch (e) {
+          alert("❌ Error processing the media file."); setCampaignState('stopped'); return;
+       }
+    }
 
-      if (i < contacts.length - 1 && !stopRef.current) {
-        if (isMessageSuccessful) {
-           messagesProcessed++; 
-           if (connectionMode === 'web' && messagesProcessed >= nextPauseTarget) {
-                try {
-                  setLogs(prev => [{ id: 'pause', to: 'System', status: '⏸ Batch Pause (30s)...', name: 'Wait' }, ...prev]);
-                  await waitWithCheck(BATCH_PAUSE_MS);
-                  nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
-                  setLogs(prev => prev.filter(l => l.id !== 'pause')); 
-                } catch (err) { break; }
-           }
-           const randomDelaySec = Number(delay) + Math.floor(Math.random() * 3);
-           try { await waitWithCheck(randomDelaySec * 1000); } catch (err) { break; }
-        } else {
-           try { await waitWithCheck(1500); } catch (err) { break; }
-        }
-      }
-    }
-    if (!stopRef.current) setCampaignState('completed');
-  };
+    for (let i = currentSent + currentFailed; i < contacts.length; i++) {
+      if (stopRef.current) { setCampaignState('stopped'); break; }
+      while (pauseRef.current) { await new Promise(resolve => setTimeout(resolve, 500)); if (stopRef.current) break; }
+      if (stopRef.current) break;
 
-  const togglePause = () => { pauseRef.current = !pauseRef.current; setCampaignState(pauseRef.current ? 'paused' : 'running'); };
-  const stopCampaign = () => { stopRef.current = true; setCampaignState('stopped'); };
+      const contact = contacts[i];
+      const personalizedMsg = message.replace(/{{Name}}/gi, contact.name);
+      setLogs(prev => [{ id: i + 1, to: contact.phone, status: "Sending...", name: contact.name }, ...prev]);
+      let isMessageSuccessful = false; 
 
-  return (
-    <div className="flex flex-col min-h-screen lg:h-[calc(100vh-100px)] gap-4 md:gap-6 max-w-[1400px] mx-auto p-2 pb-20 lg:pb-2" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
-      
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
-        <div>
-          <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
-             Bulk Sender Pro
-             {waStatus === 'checking' && <span className="text-[10px] md:text-xs text-yellow-400">Waking Server...</span>}
-             {waStatus === 'sleeping' && <span className="text-[10px] md:text-xs text-yellow-500 animate-pulse">Server Asleep.</span>}
-             {waStatus === 'connected' && (
-                <span className="flex items-center gap-1.5 px-2 md:px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] md:text-xs text-green-400">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> {connectionMode === 'web' ? 'Web Connected' : 'API Connected'}
-                </span>
-             )}
-             {waStatus === 'disconnected' && (
-                <span className="flex items-center gap-1.5 px-2 md:px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full text-[10px] md:text-xs text-red-400">
-                  <span className="w-2 h-2 bg-red-500 rounded-full"></span> Disconnected
-                </span>
-             )}
-          </h2>
-          <p className="text-gray-400 text-[10px] md:text-sm mt-1">Send Messages, Images, Videos, PDFs, and Apps securely.</p>
-        </div>
-        
-        <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full md:w-auto">
-           <div className="bg-[#0f172a] px-2 md:px-3 py-1.5 md:py-2 rounded-lg border border-gray-600 flex items-center gap-2 flex-1 md:flex-none justify-center">
-              <span className="text-gray-400 text-[10px] md:text-xs">Delay:</span>
-              <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 md:w-10 bg-transparent text-white font-bold text-center outline-none text-xs md:text-sm" />
-              <span className="text-gray-400 text-[10px] md:text-xs">sec</span>
-           </div>
-           {campaignState === 'idle' || campaignState === 'completed' || campaignState === 'stopped' ? (
-             <button onClick={startCampaign} disabled={contacts.length === 0} className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white shadow-lg transition-all ${contacts.length === 0 ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:scale-105'}`}>
-               {campaignState === 'completed' ? '🔄 Resend Campaign' : '▶ Start Campaign'}
-             </button>
-           ) : (
-             <div className="flex gap-2 w-full md:w-auto">
-               <button onClick={togglePause} className="flex-1 md:flex-none px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-yellow-600 hover:bg-yellow-500 shadow-lg transition-all flex items-center justify-center gap-2">
-                 {campaignState === 'paused' ? '▶ Resume' : '⏸ Pause'}
-               </button>
-               <button onClick={stopCampaign} className="flex-1 md:flex-none px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-red-600 hover:bg-red-500 shadow-lg transition-all flex items-center justify-center gap-2">
-                 ⏹ Stop
-               </button>
-             </div>
-           )}
-        </div>
-      </div>
+      try {
+        let finalMediaToSend = rawBase64MediaData;
+        let finalMimeType = mimeType;
+        let finalFileName = originalFileName;
 
-      {campaignState !== 'idle' && (
-        <div className="bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-lg animate-fade-in flex-shrink-0">
-          <div className="flex justify-between items-center mb-2"><span className="text-xs md:text-sm font-bold text-white">Campaign Progress</span><span className="text-xs md:text-sm font-mono text-fuchsia-400">{progress}%</span></div>
-          <div className="w-full bg-gray-700 rounded-full h-2 md:h-3 mb-2 overflow-hidden"><div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 h-2 md:h-3 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div></div>
-          <div className="flex justify-between text-[10px] md:text-xs text-gray-400 font-medium"><span className="text-green-400">✅ Sent: {stats.sent}</span><span className="text-red-400">❌ Failed: {stats.failed}</span><span className="text-blue-400">⏳ Pending: {stats.total - stats.sent - stats.failed}</span></div>
-        </div>
-      )}
+        // 🔥 FIX 1: Strict Media Conversion to avoid API Rejections
+        if (showSticker && mimeType && mimeType.startsWith('image/')) {
+            finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
+            finalMimeType = 'image/jpeg';
+            finalFileName = 'invite.jpg';
+        }
 
-      <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto lg:overflow-hidden custom-scrollbar">
-        
-        <div className="w-full lg:w-[340px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0 lg:pb-10">
-          <div className="grid grid-cols-2 gap-2 md:gap-3 flex-shrink-0">
-             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
-               <div className="flex justify-between items-center mb-2">
-                 <h3 className="text-white font-bold text-[10px] md:text-[11px]">1. Contacts</h3>
-                 {contacts.length > 0 && <button onClick={clearContacts} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
-               </div>
-               <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
-                 <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                 <p className="text-base md:text-lg mb-0.5">📊</p>
-                 <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{file ? file.name : "Upload Excel"}</p>
-               </div>
-             </div>
-             <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
-               <div className="flex justify-between items-center mb-2">
-                 <h3 className="text-white font-bold text-[10px] md:text-[11px]">2. Any File</h3>
-                 {media && <button onClick={clearMedia} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
-               </div>
-               <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
-                  <input type="file" accept="*/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                  <p className="text-base md:text-lg mb-0.5">📎</p>
-                  <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{media ? media.name : "Attach File"}</p>
-               </div>
-             </div>
-          </div>
+        let res;
+        if (connectionMode === 'web') {
+           res = await fetch(`${WA_ENGINE_URL}/api/wa-send`, {
+             method: 'POST', headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ target: contact.phone, text: personalizedMsg, isGroup: false, mediaBase64: finalMediaToSend, mediaType: finalMimeType, fileName: finalFileName })
+           });
+        } else {
+           const payload = {
+             email: user?.email || 'demo@reachify.com', 
+             phone: contact.phone, 
+             message: personalizedMsg, 
+             media_type: finalMimeType || 'text',
+             media_base64: finalMediaToSend, 
+             fileName: finalFileName, 
+             provider: waProvider, 
+             instance_id: waInstanceId, 
+             access_token: waToken
+           };
+           res = await fetch(`${API_URL}/send-message`, {
+             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+           });
+        }
 
-          {contacts.length > 0 && (
-            <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 animate-fade-in-up">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-[10px] md:text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
-                <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[9px] md:text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">{showContactPreview ? 'Hide ▲' : 'View ▼'}</button>
-              </div>
-              {showContactPreview && (
-                <div className="animate-fade-in">
-                  <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
-                    <span className="text-[9px] md:text-[10px] text-gray-400 font-bold whitespace-nowrap">Add Code: +</span>
-                    <input type="text" value={countryCode} onChange={e => setCountryCode(e.target.value)} className="w-8 bg-transparent text-white text-[10px] md:text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" placeholder="91" />
-                    <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[9px] md:text-[10px] rounded font-bold py-1.5 transition-all">Apply to All</button>
-                  </div>
-                  <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner scroll-smooth custom-scrollbar">
-                    {contacts.map((c, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-[9px] md:text-[10px] border-b border-gray-800 pb-1">
-                        <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
-                        <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
+        const data = await res.json(); 
 
-          <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col">
-            <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2">3. WhatsApp Message</h3>
-            <textarea value={message} onChange={(e) => setMessage(e.target.value)} className="w-full h-16 md:h-20 bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar mb-3" placeholder="Message text... use {{Name}}"></textarea>
+        if (res.ok && data.success !== false) {
+          currentSent++; isMessageSuccessful = true; 
+          setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "✅ Sent" } : l));
+        } else {
+          currentFailed++;
+          let errorMsg = data.error || "Failed to Send";
+          if (errorMsg.includes("Template") || errorMsg.includes("template")) errorMsg = "Template Required";
+          else errorMsg = errorMsg.substring(0, 35);
+          
+          setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: `❌ ${errorMsg}` } : l));
+          
+          if (data.error && data.error.includes("disconnected")) {
+              alert("❌ Server disconnected! Please go to Settings > Refresh QR Code or Check API Keys.");
+              setCampaignState('stopped'); break;
+          }
+        }
+      } catch (err) { currentFailed++; setLogs(prev => prev.map(l => l.id === i + 1 ? { ...l, status: "⚠️ Error" } : l)); }
+      
+      setStats({ sent: currentSent, failed: currentFailed, total: contacts.length });
+      setProgress(Math.round(((i + 1) / contacts.length) * 100));
 
-            {mediaPreview && (
-               <div className="border border-fuchsia-500/40 rounded-lg overflow-hidden flex flex-col">
-                  <div className="flex items-center justify-between bg-fuchsia-500/10 p-2 md:p-3 border-b border-fuchsia-500/40">
-                     <span className="text-[10px] md:text-xs text-white font-bold">✨ Smart Image Sticker</span>
-                     <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} className="w-4 h-4 md:w-5 md:h-5 accent-fuchsia-500" />
-                  </div>
-                  
-                  {showSticker && (
-                     <>
-                        <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
-                           <button onClick={()=>setActiveTab('name')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name</button>
-                           <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
-                           <button onClick={()=>setActiveTab('box')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box</button>
-                        </div>
+      if (i < contacts.length - 1 && !stopRef.current) {
+        if (isMessageSuccessful) {
+           messagesProcessed++; 
+           if (connectionMode === 'web' && messagesProcessed >= nextPauseTarget) {
+                try {
+                  setLogs(prev => [{ id: 'pause', to: 'System', status: '⏸ Batch Pause (30s)...', name: 'Wait' }, ...prev]);
+                  await waitWithCheck(BATCH_PAUSE_MS);
+                  nextPauseTarget = messagesProcessed + Math.floor(Math.random() * (30 - 20 + 1) + 20);
+                  setLogs(prev => prev.filter(l => l.id !== 'pause')); 
+                } catch (err) { break; }
+           }
+           const randomDelaySec = Number(delay) + Math.floor(Math.random() * 3);
+           try { await waitWithCheck(randomDelaySec * 1000); } catch (err) { break; }
+        } else {
+           try { await waitWithCheck(1500); } catch (err) { break; }
+        }
+      }
+    }
+    if (!stopRef.current) setCampaignState('completed');
+  };
 
-                        <div className="p-3 bg-[#0f172a] space-y-3 lg:max-h-[250px] overflow-y-auto custom-scrollbar">
-                           {activeTab === 'name' && (
-                              <div className="space-y-3 animate-fade-in">
-                                 <div>
-                                    <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
-                                    <input type="range" min="12" max="72" value={nameSize} onChange={e=>setNameSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Font Family</label>
-                                       <select value={nameFont} onChange={e=>setNameFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                                       </select>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Format</label>
-                                       <div className="flex gap-1">
-                                          <button onClick={() => setNameWeight(nameWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${nameWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
-                                          <button onClick={() => setNameStyle(nameStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${nameStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
-                                       </div>
-                                    </div>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
-                                       <input type="color" value={nameColor} onChange={e=>setNameColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Border (Outline)</label>
-                                       <select value={nameOutline} onChange={e=>setNameOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                       </select>
-                                    </div>
-                                 </div>
-                              </div>
-                           )}
+  const togglePause = () => { pauseRef.current = !pauseRef.current; setCampaignState(pauseRef.current ? 'paused' : 'running'); };
+  const stopCampaign = () => { stopRef.current = true; setCampaignState('stopped'); };
 
-                           {activeTab === 'sub' && (
-                              <div className="space-y-3 animate-fade-in">
-                                 <div>
-                                    <label className="text-[9px] text-gray-400 block mb-1">Sub-Text</label>
-                                    <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none focus:border-fuchsia-500"/>
-                                 </div>
-                                 <div>
-                                    <label className="text-[9px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
-                                    <input type="range" min="10" max="48" value={subSize} onChange={e=>setSubSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Font</label>
-                                       <select value={subFont} onChange={e=>setSubFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                                       </select>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Format</label>
-                                       <div className="flex gap-1">
-                                          <button onClick={() => setSubWeight(subWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${subWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
-                                          <button onClick={() => setSubStyle(subStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${subStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
-                                       </div>
-                                    </div>
-                                 </div>
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
-                                       <input type="color" value={subColor} onChange={e=>setSubColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Outline</label>
-                                       <select value={subOutline} onChange={e=>setSubOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                       </select>
-                                    </div>
-                                 </div>
-                              </div>
-                           )}
+  return (
+    <div className="flex flex-col min-h-screen lg:h-[calc(100vh-100px)] gap-4 md:gap-6 max-w-[1400px] mx-auto p-2 pb-20 lg:pb-2" onMouseUp={handleMouseUp} onTouchEnd={handleMouseUp} onMouseLeave={handleMouseUp}>
+      
+      {/* --- TOP TABS BAR --- */}
+      <div className="flex gap-4 w-full overflow-x-auto custom-scrollbar pb-2">
+        <button 
+            onClick={() => setMainTab('send')} 
+            className={`flex-shrink-0 px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${mainTab === 'send' ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] border border-fuchsia-400' : 'bg-[#1e293b] text-gray-400 hover:text-white hover:bg-[#2d3748] border border-gray-700'}`}
+        >
+            🚀 Send Campaign
+        </button>
+        <button 
+            onClick={() => setMainTab('history')} 
+            className={`flex-shrink-0 px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${mainTab === 'history' ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] border border-fuchsia-400' : 'bg-[#1e293b] text-gray-400 hover:text-white hover:bg-[#2d3748] border border-gray-700'}`}
+        >
+            📜 Sent History (Advanced)
+        </button>
+      </div>
 
-                           {activeTab === 'box' && (
-                              <div className="space-y-3 animate-fade-in">
-                                 <div className="grid grid-cols-2 gap-2">
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Background</label>
-                                       <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          <option value="gold_gradient">VIP Golden (New) ✨</option>
-                                          <option value="silver_gradient">VIP Silver (New) ✨</option>
-                                          <option value="rgba(0, 0, 0, 0.5)">Dark Glass</option>
-                                          <option value="rgba(255, 255, 255, 0.5)">Light Glass</option>
-                                          <option value="transparent">Transparent</option>
-                                          <option value="#000000">Solid Black</option>
-                                       </select>
-                                    </div>
-                                    <div>
-                                       <label className="text-[9px] text-gray-400 block mb-1">Border</label>
-                                       <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
-                                          <option value="none">No Border</option>
-                                          <option value="gold_gradient">VIP Golden Border ✨</option>
-                                          <option value="silver_gradient">VIP Silver Border ✨</option>
-                                          <option value="2px solid white">Solid White</option>
-                                          <option value="2px dashed #d946ef">Dashed Pink</option>
-                                          <option value="2px solid #fbbf24">Solid Gold</option>
-                                       </select>
-                                    </div>
-                                 </div>
-                                 <div>
-                                    <label className="text-[9px] text-gray-400 flex justify-between">Radius <span>{boxRadius}px</span></label>
-                                    <input type="range" min="0" max="50" value={boxRadius} onChange={e=>setBoxRadius(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
-                                 </div>
-                                 <div>
-                                    <label className="text-[9px] text-gray-400 flex justify-between">Padding <span>{boxPadding}px</span></label>
-                                    <input type="range" min="0" max="40" value={boxPadding} onChange={e=>setBoxPadding(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
-                                 </div>
-                              </div>
-                           )}
-                        </div>
-                     </>
-                  )}
-               </div>
-            )}
-          </div>
-        </div>
+      {mainTab === 'send' ? (
+      <>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
+            <div>
+              <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
+                  Bulk Sender Pro
+                  {waStatus === 'checking' && <span className="text-[10px] md:text-xs text-yellow-400">Waking Server...</span>}
+                  {waStatus === 'sleeping' && <span className="text-[10px] md:text-xs text-yellow-500 animate-pulse">Server Asleep.</span>}
+                  {waStatus === 'connected' && (
+                    <span className="flex items-center gap-1.5 px-2 md:px-3 py-1 bg-green-500/10 border border-green-500/30 rounded-full text-[10px] md:text-xs text-green-400">
+                      <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> {connectionMode === 'web' ? 'Web Connected' : 'API Connected'}
+                    </span>
+                  )}
+                  {waStatus === 'disconnected' && (
+                    <span className="flex items-center gap-1.5 px-2 md:px-3 py-1 bg-red-500/10 border border-red-500/30 rounded-full text-[10px] md:text-xs text-red-400">
+                      <span className="w-2 h-2 bg-red-500 rounded-full"></span> Disconnected
+                    </span>
+                  )}
+              </h2>
+              <p className="text-gray-400 text-[10px] md:text-sm mt-1">Send Messages, Images, Videos, PDFs, and Apps securely.</p>
+            </div>
+            
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full md:w-auto">
+               <div className="bg-[#0f172a] px-2 md:px-3 py-1.5 md:py-2 rounded-lg border border-gray-600 flex items-center gap-2 flex-1 md:flex-none justify-center">
+                  <span className="text-gray-400 text-[10px] md:text-xs">Delay:</span>
+                  <input type="number" value={delay} onChange={e => setDelay(e.target.value)} className="w-8 md:w-10 bg-transparent text-white font-bold text-center outline-none text-xs md:text-sm" />
+                  <span className="text-gray-400 text-[10px] md:text-xs">sec</span>
+               </div>
+               {campaignState === 'idle' || campaignState === 'completed' || campaignState === 'stopped' ? (
+                 <button onClick={startCampaign} disabled={contacts.length === 0} className={`flex-1 md:flex-none px-4 md:px-6 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white shadow-lg transition-all ${contacts.length === 0 ? 'bg-gray-600 cursor-not-allowed opacity-50' : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:scale-105'}`}>
+                   {campaignState === 'completed' || (stats.sent > 0 && progress < 100) ? '🔄 Resume/Resend' : '▶ Start Campaign'}
+                 </button>
+               ) : (
+                 <div className="flex gap-2 w-full md:w-auto">
+                   <button onClick={togglePause} className="flex-1 md:flex-none px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-yellow-600 hover:bg-yellow-500 shadow-lg transition-all flex items-center justify-center gap-2">
+                     {campaignState === 'paused' ? '▶ Resume' : '⏸ Pause'}
+                   </button>
+                   <button onClick={stopCampaign} className="flex-1 md:flex-none px-4 md:px-5 py-2 md:py-2.5 rounded-xl font-bold text-xs md:text-sm text-white bg-red-600 hover:bg-red-500 shadow-lg transition-all flex items-center justify-center gap-2">
+                     ⏹ Stop
+                   </button>
+                 </div>
+               )}
+            </div>
+          </div>
 
-        <div className="flex-1 bg-[#0f172a] rounded-2xl border border-gray-700 shadow-lg flex flex-col relative overflow-hidden min-h-[350px] lg:min-h-0">
-           <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-black/80 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs text-white border border-gray-700 flex items-center gap-2 shadow-lg">
-             <span className="animate-pulse w-2 h-2 bg-fuchsia-500 rounded-full"></span> Live Preview
-           </div>
-           
-           <div className="flex-1 flex items-center justify-center p-2 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5 overflow-hidden" style={{touchAction: 'none'}} onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
-             {media ? (
-               <div ref={imageContainerRef} className={`relative max-w-full max-h-full shadow-2xl rounded-lg select-none flex items-center justify-center ${!mediaPreview ? 'border-2 border-dashed border-gray-600 p-8' : 'border-4 border-gray-800'}`}>
-                 {mediaPreview ? ( 
-                    <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[50vh] lg:max-h-[65vh] object-contain pointer-events-none" /> 
-                 ) : ( 
-                    <div className="w-48 h-48 md:w-64 md:h-64 bg-gray-800 flex items-center justify-center text-gray-300 flex-col px-4 md:px-6 text-center rounded-xl">
-                       <span className="text-4xl md:text-6xl mb-3 md:mb-4">{media.type.startsWith('video') ? '🎥' : media.type.startsWith('audio') ? '🎵' : media.type.includes('pdf') ? '📕' : media.name.endsWith('.apk') ? '🤖' : '📁'}</span>
-                       <span className="font-bold text-[10px] md:text-sm truncate w-full">{media.name}</span>
-                       <span className="text-[8px] md:text-[10px] text-fuchsia-400 mt-3 md:mt-4">File ready to send (Universal)</span>
-                    </div> 
-                 )}
-                 
-                 {showSticker && mediaPreview && (
-                   <div 
-                     onMouseDown={handleDragStart} onTouchStart={handleDragStart} 
-                     style={{ 
-                        top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', 
-                        background: getBgStyle(boxBg), border: getBorderStyle(boxBorder), borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
-                        backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
-                     }} 
-                     className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
-                   >
-                     <div 
-                        style={{ 
-                           color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
-                           WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
-                           textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
-                           lineHeight: '1.2'
-                        }}
-                        className="text-center w-full break-words"
-                     >
-                        {nameText}
-                     </div>
-                     {subText && ( 
-                        <div 
-                           style={{ 
-                              color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
-                              WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
-                              marginTop: '4px', lineHeight: '1.2'
-                           }}
-                           className="text-center w-full break-words opacity-90"
-                        >
-                           {subText}
-                        </div> 
-                     )}
-                     <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-8 h-8 md:w-6 md:h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30"><span className="text-[12px] md:text-[10px] text-fuchsia-600">⤡</span></div>
-                   </div>
-                 )}
-               </div>
-             ) : ( <div className="text-gray-500 text-center flex flex-col items-center"><p className="text-4xl md:text-5xl mb-3 md:mb-4 opacity-50">📤</p><p className="font-bold text-xs md:text-base">Canvas is Empty</p><p className="text-[9px] md:text-xs mt-1 md:mt-2">Upload any file or image</p></div> )}
-           </div>
-        </div>
+          {(campaignState !== 'idle' || stats.sent > 0 || stats.failed > 0) && (
+            <div className="bg-[#1e293b] p-3 md:p-4 rounded-xl border border-gray-700 shadow-lg animate-fade-in flex-shrink-0">
+              <div className="flex justify-between items-center mb-2"><span className="text-xs md:text-sm font-bold text-white">Campaign Progress</span><span className="text-xs md:text-sm font-mono text-fuchsia-400">{progress}%</span></div>
+              <div className="w-full bg-gray-700 rounded-full h-2 md:h-3 mb-2 overflow-hidden"><div className="bg-gradient-to-r from-fuchsia-600 to-purple-600 h-2 md:h-3 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div></div>
+              <div className="flex justify-between text-[10px] md:text-xs text-gray-400 font-medium"><span className="text-green-400">✅ Sent: {stats.sent}</span><span className="text-red-400">❌ Failed: {stats.failed}</span><span className="text-blue-400">⏳ Pending: {Math.max(0, stats.total - stats.sent - stats.failed)}</span></div>
+            </div>
+          )}
 
-        <div className="w-full lg:w-[280px] bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden h-[300px] lg:h-auto flex-shrink-0">
-          <div className="p-3 md:p-4 border-b border-gray-700 bg-[#0f172a] font-bold text-white flex justify-between items-center"><span className="text-xs md:text-base">📡 Action Logs</span><span className="text-[9px] md:text-[10px] bg-gray-800 px-2 py-1 rounded">Total: {stats.total}</span></div>
-          <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 custom-scrollbar scroll-smooth">
-            {logs.length === 0 ? ( <div className="h-full flex flex-col items-center justify-center opacity-50 text-gray-500"><span className="text-3xl md:text-4xl mb-2">⏳</span><p className="text-[10px] md:text-sm">Activity will appear here</p></div> ) : logs.map(log => (
-               <div key={log.id} className="flex flex-col bg-[#0f172a] p-2 md:p-3 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors animate-fade-in">
-                  <div className="flex justify-between items-center mb-1"><span className="text-[10px] md:text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span><span className={`text-[8px] md:text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') || log.status.includes('❌') || log.status.includes('Timeout') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{log.status}</span></div>
-                  <span className="text-[9px] md:text-xs font-mono text-gray-500">{log.to}</span>
-               </div>
-            ))}
-          </div>
-        </div>
+          <div className="flex-1 flex flex-col lg:flex-row gap-4 md:gap-6 overflow-y-auto lg:overflow-hidden custom-scrollbar">
+            
+            <div className="w-full lg:w-[340px] flex flex-col gap-4 overflow-y-visible lg:overflow-y-auto pr-1 custom-scrollbar flex-shrink-0 lg:pb-10">
+              <div className="grid grid-cols-2 gap-2 md:gap-3 flex-shrink-0">
+                 <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
+                   <div className="flex justify-between items-center mb-2">
+                     <h3 className="text-white font-bold text-[10px] md:text-[11px]">1. Contacts</h3>
+                     {contacts.length > 0 && <button onClick={clearContacts} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
+                   </div>
+                   <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
+                     <input type="file" accept=".xlsx, .csv" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                     <p className="text-base md:text-lg mb-0.5">📊</p>
+                     <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{file ? file.name : "Upload Excel"}</p>
+                   </div>
+                 </div>
+                 <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md">
+                   <div className="flex justify-between items-center mb-2">
+                     <h3 className="text-white font-bold text-[10px] md:text-[11px]">2. Any File</h3>
+                     {media && <button onClick={clearMedia} className="text-[9px] text-red-400 hover:text-red-300 font-bold bg-red-500/10 px-1.5 py-0.5 rounded">Clear</button>}
+                   </div>
+                   <div className="relative cursor-pointer border border-dashed border-gray-600 rounded p-2 text-center bg-[#0f172a] hover:border-fuchsia-500 transition-all h-16 flex flex-col justify-center items-center">
+                      <input type="file" accept="*/*" onChange={handleMediaUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                      <p className="text-base md:text-lg mb-0.5">📎</p>
+                      <p className="text-[8px] md:text-[9px] text-gray-300 truncate w-full px-1">{media ? media.name : "Attach File"}</p>
+                   </div>
+                 </div>
+              </div>
 
-      </div>
-    </div>
-  );
+              {contacts.length > 0 && (
+                <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 animate-fade-in-up">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-[10px] md:text-xs font-bold text-green-400">✅ {contacts.length} Ready</span>
+                    <button onClick={() => setShowContactPreview(!showContactPreview)} className="text-[9px] md:text-[10px] text-fuchsia-400 hover:text-white font-bold bg-fuchsia-500/10 px-2 py-1 rounded transition-all">{showContactPreview ? 'Hide ▲' : 'View ▼'}</button>
+                  </div>
+                  {showContactPreview && (
+                    <div className="animate-fade-in">
+                      <div className="flex gap-2 mb-3 p-2 bg-[#0f172a] rounded-lg border border-gray-600 items-center">
+                        <span className="text-[9px] md:text-[10px] text-gray-400 font-bold whitespace-nowrap">Add Code: +</span>
+                        <input type="text" value={countryCode} onChange={e => setCountryCode(e.target.value)} className="w-8 bg-transparent text-white text-[10px] md:text-xs outline-none font-mono border-b border-gray-600 focus:border-fuchsia-500 text-center" placeholder="91" />
+                        <button onClick={applyCountryCode} className="flex-1 bg-fuchsia-600 hover:bg-fuchsia-500 text-white text-[9px] md:text-[10px] rounded font-bold py-1.5 transition-all">Apply to All</button>
+                      </div>
+                      <div className="max-h-32 overflow-y-auto bg-[#0f172a] border border-gray-700 rounded-lg p-2 space-y-1 shadow-inner scroll-smooth custom-scrollbar">
+                        {contacts.map((c, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-[9px] md:text-[10px] border-b border-gray-800 pb-1">
+                            <span className="text-gray-300 font-bold truncate w-1/2 pr-2" title={c.name}>{c.name}</span>
+                            <span className="text-fuchsia-400 font-mono bg-fuchsia-500/10 px-1.5 py-0.5 rounded flex-shrink-0">{c.phone}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="bg-[#1e293b] p-3 rounded-xl border border-gray-700 shadow-md flex-shrink-0 flex flex-col">
+                <h3 className="text-white font-bold text-[10px] md:text-[11px] mb-2">3. WhatsApp Message</h3>
+                <textarea value={message} onChange={(e) => setMessage(e.target.value)} className="w-full h-16 md:h-20 bg-[#0f172a] border border-gray-600 rounded-lg p-2 text-white text-[10px] md:text-xs outline-none focus:border-fuchsia-500 resize-none custom-scrollbar mb-3" placeholder="Message text... use {{Name}}"></textarea>
+
+                {mediaPreview && (
+                   <div className="border border-fuchsia-500/40 rounded-lg overflow-hidden flex flex-col">
+                      <div className="flex items-center justify-between bg-fuchsia-500/10 p-2 md:p-3 border-b border-fuchsia-500/40">
+                         <span className="text-[10px] md:text-xs text-white font-bold">✨ Smart Image Sticker</span>
+                         <input type="checkbox" checked={showSticker} onChange={(e) => setShowSticker(e.target.checked)} className="w-4 h-4 md:w-5 md:h-5 accent-fuchsia-500" />
+                      </div>
+                      
+                      {showSticker && (
+                         <>
+                            <div className="flex bg-[#0f172a] p-1 border-b border-gray-700">
+                               <button onClick={()=>setActiveTab('name')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'name' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Name</button>
+                               <button onClick={()=>setActiveTab('sub')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'sub' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Sub-Text</button>
+                               <button onClick={()=>setActiveTab('box')} className={`flex-1 py-1.5 text-[9px] md:text-[11px] font-bold rounded-md transition-all ${activeTab === 'box' ? 'bg-fuchsia-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}>Box</button>
+                            </div>
+
+                            <div className="p-3 bg-[#0f172a] space-y-3 lg:max-h-[250px] overflow-y-auto custom-scrollbar">
+                               {activeTab === 'name' && (
+                                  <div className="space-y-3 animate-fade-in">
+                                     <div>
+                                        <label className="text-[9px] md:text-[10px] text-gray-400 flex justify-between">Font Size <span>{nameSize}px</span></label>
+                                        <input type="range" min="12" max="72" value={nameSize} onChange={e=>setNameSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Font Family</label>
+                                           <select value={nameFont} onChange={e=>setNameFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                           </select>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Format</label>
+                                           <div className="flex gap-1">
+                                              <button onClick={() => setNameWeight(nameWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${nameWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
+                                              <button onClick={() => setNameStyle(nameStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${nameStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
+                                           </div>
+                                        </div>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
+                                           <input type="color" value={nameColor} onChange={e=>setNameColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Border (Outline)</label>
+                                           <select value={nameOutline} onChange={e=>setNameOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                           </select>
+                                        </div>
+                                     </div>
+                                  </div>
+                               )}
+
+                               {activeTab === 'sub' && (
+                                  <div className="space-y-3 animate-fade-in">
+                                     <div>
+                                        <label className="text-[9px] text-gray-400 block mb-1">Sub-Text</label>
+                                        <input type="text" value={subText} onChange={e=>setSubText(e.target.value)} placeholder="Type here..." className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[10px] text-white outline-none focus:border-fuchsia-500"/>
+                                     </div>
+                                     <div>
+                                        <label className="text-[9px] text-gray-400 flex justify-between">Font Size <span>{subSize}px</span></label>
+                                        <input type="range" min="10" max="48" value={subSize} onChange={e=>setSubSize(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Font</label>
+                                           <select value={subFont} onChange={e=>setSubFont(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              {fontOptions.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                                           </select>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Format</label>
+                                           <div className="flex gap-1">
+                                              <button onClick={() => setSubWeight(subWeight === 'bold' ? 'normal' : 'bold')} className={`flex-1 p-1 rounded border text-[9px] font-bold ${subWeight === 'bold' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>B</button>
+                                              <button onClick={() => setSubStyle(subStyle === 'italic' ? 'normal' : 'italic')} className={`flex-1 p-1 rounded border text-[9px] italic ${subStyle === 'italic' ? 'bg-fuchsia-600 border-fuchsia-500 text-white' : 'bg-[#1e293b] border-gray-600 text-gray-400'}`}>I</button>
+                                           </div>
+                                        </div>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Text Color</label>
+                                           <input type="color" value={subColor} onChange={e=>setSubColor(e.target.value)} className="w-full h-6 rounded cursor-pointer bg-transparent border border-gray-600"/>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Outline</label>
+                                           <select value={subOutline} onChange={e=>setSubOutline(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              {outlineOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                           </select>
+                                        </div>
+                                     </div>
+                                  </div>
+                               )}
+
+                               {activeTab === 'box' && (
+                                  <div className="space-y-3 animate-fade-in">
+                                     <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Background</label>
+                                           <select value={boxBg} onChange={e=>setBoxBg(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              <option value="gold_gradient">VIP Golden (New) ✨</option>
+                                              <option value="silver_gradient">VIP Silver (New) ✨</option>
+                                              <option value="rgba(0, 0, 0, 0.5)">Dark Glass</option>
+                                              <option value="rgba(255, 255, 255, 0.5)">Light Glass</option>
+                                              <option value="transparent">Transparent</option>
+                                              <option value="#000000">Solid Black</option>
+                                           </select>
+                                        </div>
+                                        <div>
+                                           <label className="text-[9px] text-gray-400 block mb-1">Border</label>
+                                           <select value={boxBorder} onChange={e=>setBoxBorder(e.target.value)} className="w-full bg-[#1e293b] border border-gray-600 rounded p-1.5 text-[9px] text-white outline-none">
+                                              <option value="none">No Border</option>
+                                              <option value="gold_gradient">VIP Golden Border ✨</option>
+                                              <option value="silver_gradient">VIP Silver Border ✨</option>
+                                              <option value="2px solid white">Solid White</option>
+                                              <option value="2px dashed #d946ef">Dashed Pink</option>
+                                              <option value="2px solid #fbbf24">Solid Gold</option>
+                                           </select>
+                                        </div>
+                                     </div>
+                                     <div>
+                                        <label className="text-[9px] text-gray-400 flex justify-between">Radius <span>{boxRadius}px</span></label>
+                                        <input type="range" min="0" max="50" value={boxRadius} onChange={e=>setBoxRadius(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                     </div>
+                                     <div>
+                                        <label className="text-[9px] text-gray-400 flex justify-between">Padding <span>{boxPadding}px</span></label>
+                                        <input type="range" min="0" max="40" value={boxPadding} onChange={e=>setBoxPadding(e.target.value)} className="w-full accent-fuchsia-500 mt-1"/>
+                                     </div>
+                                  </div>
+                               )}
+                            </div>
+                         </>
+                      )}
+                   </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 bg-[#0f172a] rounded-2xl border border-gray-700 shadow-lg flex flex-col relative overflow-hidden min-h-[350px] lg:min-h-0">
+               <div className="absolute top-3 left-3 md:top-4 md:left-4 z-10 bg-black/80 px-3 md:px-4 py-1 md:py-1.5 rounded-full text-[10px] md:text-xs text-white border border-gray-700 flex items-center gap-2 shadow-lg">
+                 <span className="animate-pulse w-2 h-2 bg-fuchsia-500 rounded-full"></span> Live Preview
+               </div>
+               
+               <div className="flex-1 flex items-center justify-center p-2 md:p-6 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-opacity-5 overflow-hidden" style={{touchAction: 'none'}} onMouseMove={handleMouseMove} onTouchMove={handleMouseMove}>
+                 {media ? (
+                   <div ref={imageContainerRef} className={`relative max-w-full max-h-full shadow-2xl rounded-lg select-none flex items-center justify-center ${!mediaPreview ? 'border-2 border-dashed border-gray-600 p-8' : 'border-4 border-gray-800'}`}>
+                     {mediaPreview ? ( 
+                        <img src={mediaPreview} alt="Preview" className="max-w-full max-h-[50vh] lg:max-h-[65vh] object-contain pointer-events-none" /> 
+                     ) : ( 
+                        <div className="w-48 h-48 md:w-64 md:h-64 bg-gray-800 flex items-center justify-center text-gray-300 flex-col px-4 md:px-6 text-center rounded-xl">
+                           <span className="text-4xl md:text-6xl mb-3 md:mb-4">{media.type.startsWith('video') ? '🎥' : media.type.startsWith('audio') ? '🎵' : media.type.includes('pdf') ? '📕' : media.name.endsWith('.apk') ? '🤖' : '📁'}</span>
+                           <span className="font-bold text-[10px] md:text-sm truncate w-full">{media.name}</span>
+                           <span className="text-[8px] md:text-[10px] text-fuchsia-400 mt-3 md:mt-4">File ready to send (Universal)</span>
+                        </div> 
+                     )}
+                     
+                     {showSticker && mediaPreview && (
+                       <div 
+                         onMouseDown={handleDragStart} onTouchStart={handleDragStart} 
+                         style={{ 
+                            top: `${stickerPos.y}%`, left: `${stickerPos.x}%`, width: `${stickerWidth}px`, transform: 'translate(-50%, -50%)', cursor: isDragging ? 'grabbing' : 'grab', 
+                            background: getBgStyle(boxBg), border: getBorderStyle(boxBorder), borderRadius: `${boxRadius}px`, padding: `${boxPadding}px`,
+                            backdropFilter: boxBg.includes('rgba') ? 'blur(6px)' : 'none',
+                         }} 
+                         className="absolute flex flex-col items-center justify-center transition-shadow z-20 group hover:ring-2 hover:ring-fuchsia-500 shadow-lg"
+                       >
+                         <div 
+                            style={{ 
+                               color: nameColor, fontFamily: nameFont, fontWeight: nameWeight, fontStyle: nameStyle, fontSize: `${nameSize}px`,
+                               WebkitTextStroke: nameOutline !== 'none' ? `1px ${nameOutline}` : 'none',
+                               textShadow: nameOutline === 'none' && nameColor === '#ffffff' ? '1px 1px 4px rgba(0,0,0,0.8)' : 'none',
+                               lineHeight: '1.2'
+                            }}
+                            className="text-center w-full break-words"
+                         >
+                            {nameText}
+                         </div>
+                         {subText && ( 
+                            <div 
+                               style={{ 
+                                  color: subColor, fontFamily: subFont, fontWeight: subWeight, fontStyle: subStyle, fontSize: `${subSize}px`,
+                                  WebkitTextStroke: subOutline !== 'none' ? `0.5px ${subOutline}` : 'none',
+                                  marginTop: '4px', lineHeight: '1.2'
+                               }}
+                               className="text-center w-full break-words opacity-90"
+                            >
+                               {subText}
+                            </div> 
+                         )}
+                         <div onMouseDown={handleResizeStart} onTouchStart={handleResizeStart} className="absolute -bottom-2 -right-2 w-8 h-8 md:w-6 md:h-6 bg-white border-2 border-fuchsia-600 rounded-full cursor-nwse-resize opacity-80 md:opacity-0 md:group-hover:opacity-100 shadow-xl transition-opacity flex items-center justify-center z-30"><span className="text-[12px] md:text-[10px] text-fuchsia-600">⤡</span></div>
+                       </div>
+                     )}
+                   </div>
+                 ) : ( <div className="text-gray-500 text-center flex flex-col items-center"><p className="text-4xl md:text-5xl mb-3 md:mb-4 opacity-50">📤</p><p className="font-bold text-xs md:text-base">Canvas is Empty</p><p className="text-[9px] md:text-xs mt-1 md:mt-2">Upload any file or image</p></div> )}
+               </div>
+            </div>
+
+            <div className="w-full lg:w-[280px] bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden h-[300px] lg:h-auto flex-shrink-0">
+              <div className="p-3 md:p-4 border-b border-gray-700 bg-[#0f172a] font-bold text-white flex justify-between items-center"><span className="text-xs md:text-base">📡 Action Logs</span><span className="text-[9px] md:text-[10px] bg-gray-800 px-2 py-1 rounded">Total: {stats.total}</span></div>
+              <div className="flex-1 overflow-y-auto p-2 md:p-4 space-y-2 custom-scrollbar scroll-smooth">
+                {logs.length === 0 ? ( <div className="h-full flex flex-col items-center justify-center opacity-50 text-gray-500"><span className="text-3xl md:text-4xl mb-2">⏳</span><p className="text-[10px] md:text-sm">Activity will appear here</p></div> ) : logs.map(log => (
+                   <div key={log.id} className="flex flex-col bg-[#0f172a] p-2 md:p-3 rounded-lg border border-gray-700/50 hover:border-gray-500 transition-colors animate-fade-in">
+                      <div className="flex justify-between items-center mb-1"><span className="text-[10px] md:text-xs font-bold text-gray-300 truncate w-32" title={log.name}>{log.name}</span><span className={`text-[8px] md:text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${log.status.includes('Sent') ? 'bg-green-500/20 text-green-400' : log.status.includes('Failed') || log.status.includes('❌') || log.status.includes('Timeout') ? 'bg-red-500/20 text-red-400' : 'bg-yellow-500/20 text-yellow-400'}`}>{log.status}</span></div>
+                      <span className="text-[9px] md:text-xs font-mono text-gray-500">{log.to}</span>
+                   </div>
+                ))}
+              </div>
+            </div>
+          </div>
+      </>
+      ) : (
+      // --- ADVANCED TRACKING HISTORY TAB (Pagination & Filter) ---
+      <div className="flex-1 bg-[#1e293b] rounded-2xl border border-gray-700 shadow-lg flex flex-col overflow-hidden animate-fade-in">
+         <div className="p-4 md:p-6 border-b border-gray-700 bg-[#0f172a] flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+               <h2 className="text-lg md:text-xl font-bold text-white">Live Tracking Dashboard</h2>
+               <p className="text-gray-400 text-xs mt-1">Real-time status updates directly from your database.</p>
+            </div>
+            
+            {/* Search Filter Controls */}
+            <div className="flex items-center gap-2 w-full md:w-auto">
+               <input 
+                  type="date" 
+                  value={historyDateFilter} 
+                  onChange={(e) => setHistoryDateFilter(e.target.value)} 
+                  className="bg-[#1e293b] text-sm text-gray-300 border border-gray-600 rounded-lg px-3 py-2 outline-none focus:border-fuchsia-500"
+               />
+               <button 
+                  onClick={handleDateSearch} 
+                  className="px-4 py-2 bg-gradient-to-r from-fuchsia-600 to-purple-600 hover:scale-105 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2 shadow-sm"
+               >
+                  🔍 Search
+               </button>
+            </div>
+         </div>
+         <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar bg-[#0f172a]">
+            {isLoadingHistory ? (
+               <div className="flex flex-col items-center justify-center h-full text-fuchsia-400">
+                  <span className="animate-spin text-4xl mb-4">⚙️</span>
+                  <p>Fetching history from secure database...</p>
+               </div>
+            ) : historyLogs.length === 0 ? (
+               <div className="flex flex-col items-center justify-center h-full text-gray-500 opacity-70">
+                  <span className="text-5xl mb-4">📭</span>
+                  <p>No records found for this selection.</p>
+               </div>
+            ) : (
+               <div className="w-full bg-[#1e293b] rounded-xl border border-gray-700 overflow-hidden shadow-inner flex flex-col h-full">
+                  <div className="flex-1 overflow-y-auto custom-scrollbar">
+                      <table className="w-full text-left border-collapse">
+                         <thead className="sticky top-0 bg-gray-800 z-10 shadow-sm">
+                            <tr className="text-gray-400 text-[11px] uppercase tracking-wider">
+                               <th className="p-4 font-semibold border-b border-gray-700 w-1/4">Recipient Number</th>
+                               <th className="p-4 font-semibold border-b border-gray-700 w-2/5">Message Content</th>
+                               <th className="p-4 font-semibold border-b border-gray-700 text-center">Live Delivery Status</th>
+                               <th className="p-4 font-semibold border-b border-gray-700 text-right">Sent Time</th>
+                            </tr>
+                         </thead>
+                         <tbody className="text-sm">
+                            {historyLogs.map((log, i) => {
+                               // Clean Parser for Old & New Logs (Removes Fake Text)
+                               let phonePart = log.action;
+                               let messagePart = "Media / Template Message"; 
+                               
+                               if (log.action.includes(' | Msg: ')) {
+                                   const parts = log.action.split(' | Msg: ');
+                                   phonePart = parts[0].replace('To: ', '');
+                                   if (parts[1] && parts[1] !== "N/A" && !parts[1].includes("No Preview")) {
+                                       messagePart = parts[1];
+                                   }
+                               } else if (log.action.includes('[API] Sent to ')) {
+                                   phonePart = log.action.replace('[API] Sent to ', '+');
+                               } else if (log.action.includes('[Web] Sent to ')) {
+                                   phonePart = log.action.replace('[Web] Sent to ', '+');
+                               }
+                               
+                               // Determine advanced status
+                               let advanceStatus = 'sent'; 
+                               if (log.status === 'Error') advanceStatus = 'failed';
+                               else if (log.status === 'Delivered') advanceStatus = 'delivered'; 
+                               else if (log.status === 'Read') advanceStatus = 'read'; 
+
+                               return (
+                               <tr key={i} className="hover:bg-gray-800/50 transition-colors border-b border-gray-700/50">
+                                  <td className="p-4">
+                                     <div className="text-fuchsia-400 font-mono text-[12px] bg-fuchsia-500/10 inline-block px-2 py-1 rounded border border-fuchsia-500/20">
+                                         {phonePart}
+                                     </div>
+                                  </td>
+                                  <td className="p-4">
+                                     <div className="text-gray-300 font-medium text-[11px] bg-black/30 p-2.5 rounded border border-gray-700/50 line-clamp-2" title={messagePart}>
+                                         {messagePart}
+                                     </div>
+                                  </td>
+                                  <td className="p-4">
+                                      {advanceStatus === 'failed' ? (
+                                          <div className="flex justify-center">
+                                              <span className="px-3 py-1 text-[10px] font-bold rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                                                 ❌ Failed to Send
+                                              </span>
+                                          </div>
+                                      ) : (
+                                          <div className="flex items-center justify-center gap-1.5 md:gap-3">
+                                              <div className="flex flex-col items-center justify-center text-green-400">
+                                                 <span className="text-[12px] md:text-sm font-bold bg-green-500/10 w-6 h-6 flex items-center justify-center rounded-full border border-green-500/30">✓</span>
+                                                 <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">SENT</span>
+                                              </div>
+                                              <div className={`w-4 md:w-8 h-0.5 rounded-full ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'bg-green-500' : 'bg-gray-700'}`}></div>
+                                              
+                                              <div className={`flex flex-col items-center justify-center transition-all ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'text-green-400' : 'text-gray-600'}`}>
+                                                 <span className={`text-[12px] md:text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full border ${advanceStatus === 'delivered' || advanceStatus === 'read' ? 'bg-green-500/10 border-green-500/30' : 'bg-gray-800 border-gray-700'}`}>✓✓</span>
+                                                 <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">DELIVERED</span>
+                                              </div>
+                                              <div className={`w-4 md:w-8 h-0.5 rounded-full ${advanceStatus === 'read' ? 'bg-blue-500' : 'bg-gray-700'}`}></div>
+                                              
+                                              <div className={`flex flex-col items-center justify-center transition-all ${advanceStatus === 'read' ? 'text-blue-400' : 'text-gray-600'}`}>
+                                                 <span className={`text-[12px] md:text-sm font-bold w-6 h-6 flex items-center justify-center rounded-full border ${advanceStatus === 'read' ? 'bg-blue-500/10 border-blue-500/30 text-blue-400' : 'bg-gray-800 border-gray-700'}`}>✓✓</span>
+                                                 <span className="text-[8px] md:text-[9px] mt-1 font-bold tracking-wide">READ</span>
+                                              </div>
+                                          </div>
+                                      )}
+                                  </td>
+                                  <td className="p-4 text-right">
+                                     <div className="text-gray-400 font-mono text-[11px] bg-gray-800/50 inline-block px-2 py-1 rounded">
+                                         {new Date(log.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                                     </div>
+                                  </td>
+                               </tr>
+                               );
+                            })}
+                         </tbody>
+                      </table>
+                  </div>
+                  
+                  {/* --- PAGINATION CONTROLS --- */}
+                  <div className="p-3 bg-gray-800 border-t border-gray-700 flex justify-between items-center text-sm">
+                      <button 
+                         disabled={historyPage <= 1} 
+                         onClick={() => setHistoryPage(p => p - 1)}
+                         className={`px-4 py-2 rounded font-bold text-xs ${historyPage <= 1 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-fuchsia-600 text-white hover:bg-fuchsia-500'}`}
+                      >
+                         ◀ Previous 50
+                      </button>
+                      <span className="text-gray-400 font-bold text-xs">
+                         Page {historyPage} of {historyTotalPages}
+                      </span>
+                      <button 
+                         disabled={historyPage >= historyTotalPages} 
+                         onClick={() => setHistoryPage(p => p + 1)}
+                         className={`px-4 py-2 rounded font-bold text-xs ${historyPage >= historyTotalPages ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-fuchsia-600 text-white hover:bg-fuchsia-500'}`}
+                      >
+                         Next 50 ▶
+                      </button>
+                  </div>
+               </div>
+            )}
+         </div>
+      </div>
+      )}
+
+    </div>
+  );
 };
 
 export default BulkSender;
