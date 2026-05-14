@@ -306,7 +306,9 @@ const BulkSender = () => {
     }
   };
 
-  const generatePersonalizedImageBase64 = async (rawBase64, contactName) => {
+  // 🔥 ADVANCE FIX: ALWAYS CONVERT TO CLEAN JPEG 🔥
+  // applySticker variable decide karega ki box banana hai ya sirf image convert karni hai
+  const generatePersonalizedImageBase64 = async (rawBase64, contactName, applySticker = true) => {
     return new Promise((resolve) => {
         const img = new Image();
         img.crossOrigin = "Anonymous";
@@ -318,93 +320,95 @@ const BulkSender = () => {
 
             ctx.drawImage(img, 0, 0, img.width, img.height);
             
-            const containerWidth = imageContainerRef.current ? imageContainerRef.current.offsetWidth : 400;
-            const scale = img.width / containerWidth;
+            if (applySticker) {
+                const containerWidth = imageContainerRef.current ? imageContainerRef.current.offsetWidth : 400;
+                const scale = img.width / containerWidth;
 
-            const x = (stickerPos.x / 100) * img.width;
-            const y = (stickerPos.y / 100) * img.height;
+                const x = (stickerPos.x / 100) * img.width;
+                const y = (stickerPos.y / 100) * img.height;
 
-            const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
-            const subTextStr = subText || '';
+                const textStr = nameText.replace(/{{Name}}/gi, contactName || '');
+                const subTextStr = subText || '';
 
-            const dynamicNameSize = nameSize * scale;
-            const dynamicSubSize = subSize * scale;
-            const dynamicPadding = boxPadding * scale;
-            const dynamicRadius = boxRadius * scale;
+                const dynamicNameSize = nameSize * scale;
+                const dynamicSubSize = subSize * scale;
+                const dynamicPadding = boxPadding * scale;
+                const dynamicRadius = boxRadius * scale;
 
-            const lineH1 = dynamicNameSize * 1.2;
-            const lineH2 = subTextStr ? dynamicSubSize * 1.2 : 0;
-            const gap = subTextStr ? 4 * scale : 0;
+                const lineH1 = dynamicNameSize * 1.2;
+                const lineH2 = subTextStr ? dynamicSubSize * 1.2 : 0;
+                const gap = subTextStr ? 4 * scale : 0;
 
-            const boxW = stickerWidth * scale; 
-            const boxH = lineH1 + lineH2 + gap + (dynamicPadding * 2);
+                const boxW = stickerWidth * scale; 
+                const boxH = lineH1 + lineH2 + gap + (dynamicPadding * 2);
 
-            if (boxBg && boxBg !== 'transparent') {
-                if (boxBg === 'gold_gradient') {
-                    const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
-                    grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
-                    ctx.fillStyle = grad;
-                } else if (boxBg === 'silver_gradient') {
-                    const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
-                    grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
-                    ctx.fillStyle = grad;
-                } else {
-                    ctx.fillStyle = boxBg;
+                if (boxBg && boxBg !== 'transparent') {
+                    if (boxBg === 'gold_gradient') {
+                        const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
+                        grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
+                        ctx.fillStyle = grad;
+                    } else if (boxBg === 'silver_gradient') {
+                        const grad = ctx.createLinearGradient(x - boxW/2, y - boxH/2, x + boxW/2, y + boxH/2);
+                        grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
+                        ctx.fillStyle = grad;
+                    } else {
+                        ctx.fillStyle = boxBg;
+                    }
+                    ctx.beginPath();
+                    ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                    ctx.fill();
                 }
-                ctx.beginPath();
-                ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
-                ctx.fill();
-            }
 
-            if (boxBorder && boxBorder !== 'none') {
-                 if (boxBorder === 'gold_gradient') {
-                    const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
-                    grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
-                    ctx.strokeStyle = grad;
-                 } else if (boxBorder === 'silver_gradient') {
-                    const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
-                    grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
-                    ctx.strokeStyle = grad;
-                 } else if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
-                 else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
-                 else if (boxBorder.includes('black')) ctx.strokeStyle = 'black';
-                 else ctx.strokeStyle = 'white';
+                if (boxBorder && boxBorder !== 'none') {
+                     if (boxBorder === 'gold_gradient') {
+                        const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
+                        grad.addColorStop(0, '#bf953f'); grad.addColorStop(0.5, '#fcf6ba'); grad.addColorStop(1, '#b38728');
+                        ctx.strokeStyle = grad;
+                     } else if (boxBorder === 'silver_gradient') {
+                        const grad = ctx.createLinearGradient(x - boxW/2, y, x + boxW/2, y);
+                        grad.addColorStop(0, '#8e9eab'); grad.addColorStop(0.5, '#eef2f3'); grad.addColorStop(1, '#8e9eab');
+                        ctx.strokeStyle = grad;
+                     } else if (boxBorder.includes('fuchsia')) ctx.strokeStyle = '#d946ef';
+                     else if (boxBorder.includes('gold')) ctx.strokeStyle = 'gold';
+                     else if (boxBorder.includes('black')) ctx.strokeStyle = 'black';
+                     else ctx.strokeStyle = 'white';
 
-                 ctx.lineWidth = 3 * scale;
-                 if (boxBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
-                 ctx.beginPath();
-                 ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
-                 ctx.stroke();
-                 ctx.setLineDash([]);
-            }
-
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            
-            const contentTop = y - (lineH1 + gap + lineH2) / 2;
-            const nameY = contentTop + (lineH1 / 2);
-
-            ctx.fillStyle = nameColor;
-            ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
-            if (nameOutline !== 'none') {
-                ctx.strokeStyle = nameOutline;
-                ctx.lineWidth = 3 * scale;
-                ctx.strokeText(textStr, x, nameY);
-            }
-            ctx.fillText(textStr, x, nameY);
-
-            if (subTextStr) {
-                const subY = contentTop + lineH1 + gap + (lineH2 / 2);
-                ctx.fillStyle = subColor;
-                ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
-                if (subOutline !== 'none') {
-                   ctx.strokeStyle = subOutline;
-                   ctx.lineWidth = 2 * scale;
-                   ctx.strokeText(subTextStr, x, subY);
+                     ctx.lineWidth = 3 * scale;
+                     if (boxBorder.includes('dashed')) ctx.setLineDash([8*scale, 6*scale]);
+                     ctx.beginPath();
+                     ctx.roundRect(x - boxW/2, y - boxH/2, boxW, boxH, dynamicRadius);
+                     ctx.stroke();
+                     ctx.setLineDash([]);
                 }
-                ctx.fillText(subTextStr, x, subY);
-            }
 
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                const contentTop = y - (lineH1 + gap + lineH2) / 2;
+                const nameY = contentTop + (lineH1 / 2);
+
+                ctx.fillStyle = nameColor;
+                ctx.font = `${nameStyle} ${nameWeight} ${dynamicNameSize}px ${nameFont}`;
+                if (nameOutline !== 'none') {
+                    ctx.strokeStyle = nameOutline;
+                    ctx.lineWidth = 3 * scale;
+                    ctx.strokeText(textStr, x, nameY);
+                }
+                ctx.fillText(textStr, x, nameY);
+
+                if (subTextStr) {
+                    const subY = contentTop + lineH1 + gap + (lineH2 / 2);
+                    ctx.fillStyle = subColor;
+                    ctx.font = `${subStyle} ${subWeight} ${dynamicSubSize}px ${subFont}`;
+                    if (subOutline !== 'none') {
+                       ctx.strokeStyle = subOutline;
+                       ctx.lineWidth = 2 * scale;
+                       ctx.strokeText(subTextStr, x, subY);
+                    }
+                    ctx.fillText(subTextStr, x, subY);
+                }
+            }
+            // Chahe sticker ho ya na ho, clean JPEG banakar hi wapas denge
             resolve(canvas.toDataURL('image/jpeg', 0.9));
         };
         img.onerror = () => resolve(rawBase64); 
@@ -474,9 +478,10 @@ const BulkSender = () => {
       try {
         let res; let finalMediaToSend = rawBase64MediaData;
         
-        // 🔥 CRITICAL FIX: FORCE MEDIA TYPE TO JPEG IF STICKER APPLIED 🔥
-        if (showSticker && mimeType && mimeType.startsWith('image/')) {
-            finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name);
+        // 🔥 BIG FIX: ALWAYS CONVERT IMAGE TO JPEG TO AVOID META ERRORS 🔥
+        // Chahe Sticker ON ho ya OFF, hum image ko clean karke hi bhejenge
+        if (mimeType && mimeType.startsWith('image/')) {
+            finalMediaToSend = await generatePersonalizedImageBase64(rawBase64MediaData, contact.name, showSticker);
             mimeType = 'image/jpeg'; 
             originalFileName = 'reachify_export.jpg';
         }
@@ -558,13 +563,12 @@ const BulkSender = () => {
             onClick={() => setMainTab('history')} 
             className={`flex-shrink-0 px-6 py-2.5 rounded-xl font-bold transition-all flex items-center gap-2 ${mainTab === 'history' ? 'bg-fuchsia-600 text-white shadow-[0_0_15px_rgba(192,38,211,0.4)] border border-fuchsia-400' : 'bg-[#1e293b] text-gray-400 hover:text-white hover:bg-[#2d3748] border border-gray-700'}`}
         >
-            📜 Sent History (Advanced)
+            📜 Sent History & Tracker
         </button>
       </div>
 
       {mainTab === 'send' ? (
       <>
-          {/* ... [SEND TAB CODE EXACTLY THE SAME AS BEFORE - Unchanged to preserve all features] ... */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-[#1e293b] p-3 md:p-4 rounded-2xl border border-gray-700 shadow-lg gap-4 flex-shrink-0">
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-white flex flex-wrap items-center gap-2 md:gap-3">
